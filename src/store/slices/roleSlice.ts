@@ -1,0 +1,179 @@
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
+import apiService from '../../services/api';
+import { extractErrorMessage } from '../../utils/errorHandler';
+import type { Role, CreateRoleRequest, UpdateRoleRequest } from '../../types';
+
+interface RoleState {
+  roles: Role[];
+  currentRole: Role | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const initialState: RoleState = {
+  roles: [],
+  currentRole: null,
+  isLoading: false,
+  error: null,
+};
+
+// Async thunks
+export const fetchRoles = createAsyncThunk(
+  'roles/fetchRoles',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getRoles();
+      return response.data || [];
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+export const fetchRole = createAsyncThunk(
+  'roles/fetchRole',
+  async (roleId: number, { rejectWithValue }) => {
+    try {
+      const response = await apiService.getRole(roleId);
+      return response;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+export const createRole = createAsyncThunk(
+  'roles/createRole',
+  async (roleData: CreateRoleRequest, { rejectWithValue }) => {
+    try {
+      const response = await apiService.createRole(roleData);
+      return response;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+export const updateRole = createAsyncThunk(
+  'roles/updateRole',
+  async ({ roleId, roleData }: { roleId: number; roleData: UpdateRoleRequest }, { rejectWithValue }) => {
+    try {
+      const response = await apiService.updateRole(roleId, roleData);
+      return { roleId, response };
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+export const deleteRole = createAsyncThunk(
+  'roles/deleteRole',
+  async (roleId: number, { rejectWithValue }) => {
+    try {
+      await apiService.deleteRole(roleId);
+      return roleId;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+const roleSlice = createSlice({
+  name: 'roles',
+  initialState,
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
+    setCurrentRole: (state, action: PayloadAction<Role | null>) => {
+      state.currentRole = action.payload;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch roles
+      .addCase(fetchRoles.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchRoles.fulfilled, (state, action: PayloadAction<Role[]>) => {
+        state.isLoading = false;
+        state.roles = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchRoles.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Fetch single role
+      .addCase(fetchRole.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchRole.fulfilled, (state, action: PayloadAction<Role>) => {
+        state.isLoading = false;
+        state.currentRole = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchRole.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Create role
+      .addCase(createRole.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(createRole.fulfilled, (state) => {
+        state.isLoading = false;
+        state.error = null;
+      })
+      .addCase(createRole.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Update role
+      .addCase(updateRole.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(updateRole.fulfilled, (state, action: PayloadAction<{ roleId: number; response: any }>) => {
+        state.isLoading = false;
+        state.error = null;
+        
+        // Update role in the list if it exists
+        const roleIndex = state.roles.findIndex(role => role.id === action.payload.roleId);
+        if (roleIndex !== -1) {
+          state.roles[roleIndex] = { ...state.roles[roleIndex] };
+        }
+      })
+      .addCase(updateRole.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Delete role
+      .addCase(deleteRole.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteRole.fulfilled, (state, action: PayloadAction<number>) => {
+        state.isLoading = false;
+        state.error = null;
+        
+        // Remove role from the list
+        state.roles = state.roles.filter(role => role.id !== action.payload);
+      })
+      .addCase(deleteRole.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+  },
+});
+
+export const { clearError, setCurrentRole } = roleSlice.actions;
+export default roleSlice.reducer;
