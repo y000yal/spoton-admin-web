@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import apiService from '../../services/api';
+import { permissionService } from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import type { Permission, CreatePermissionRequest, UpdatePermissionRequest, PaginatedResponse } from '../../types';
 
@@ -30,7 +30,7 @@ export const fetchPermissions = createAsyncThunk(
     sort_order?: 'asc' | 'desc';
   } = {}, { rejectWithValue }) => {
     try {
-      const response = await apiService.getPermissions(params);
+      const response = await permissionService.getPermissions(params);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -42,7 +42,7 @@ export const fetchPermission = createAsyncThunk(
   'permissions/fetchPermission',
   async (permissionId: number, { rejectWithValue }) => {
     try {
-      const response = await apiService.getPermission(permissionId);
+      const response = await permissionService.getPermission(permissionId);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -54,7 +54,7 @@ export const createPermission = createAsyncThunk(
   'permissions/createPermission',
   async (permissionData: CreatePermissionRequest, { rejectWithValue }) => {
     try {
-      const response = await apiService.createPermission(permissionData);
+      const response = await permissionService.createPermission(permissionData);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -66,7 +66,7 @@ export const updatePermission = createAsyncThunk(
   'permissions/updatePermission',
   async ({ permissionId, permissionData }: { permissionId: number; permissionData: UpdatePermissionRequest }, { rejectWithValue }) => {
     try {
-      const response = await apiService.updatePermission(permissionId, permissionData);
+      const response = await permissionService.updatePermission(permissionId, permissionData);
       return { permissionId, response };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -78,7 +78,7 @@ export const deletePermission = createAsyncThunk(
   'permissions/deletePermission',
   async (permissionId: number, { rejectWithValue }) => {
     try {
-      await apiService.deletePermission(permissionId);
+      await permissionService.deletePermission(permissionId);
       return permissionId;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));

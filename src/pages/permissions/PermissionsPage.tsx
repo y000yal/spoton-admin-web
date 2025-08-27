@@ -1,35 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Key, Shield, Lock } from 'lucide-react';
 import {
   DataTable, Button, Modal, Card,
   InputField, TextareaField, FormSection, FormActions, SelectField, ErrorMessage
-} from '../components/UI';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { fetchPermissions, createPermission, updatePermission, deletePermission, clearError } from '../store/slices/permissionSlice';
-import { useToast } from '../contexts/ToastContext';
-import type { Permission, CreatePermissionRequest, UpdatePermissionRequest } from '../types';
+} from '../../components/UI';
+import { useAppSelector, useAppDispatch } from '../../store/hooks';
+import { fetchPermissions, createPermission, deletePermission, clearError } from '../../store/slices/permissionSlice';
+import { useToast } from '../../contexts/ToastContext';
+import type { Permission, CreatePermissionRequest } from '../../types';
 
 
 const PermissionsPage: React.FC = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { permissions, isLoading, error } = useAppSelector((state) => state.permissions);
   const { showSuccess, showError } = useToast();
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
 
   // Form states
   const [createForm, setCreateForm] = useState<CreatePermissionRequest>({
-    name: '',
-    display_name: '',
-    description: '',
-    status: '1',
-  });
-
-  const [editForm, setEditForm] = useState<UpdatePermissionRequest>({
     name: '',
     display_name: '',
     description: '',
@@ -108,22 +102,8 @@ const PermissionsPage: React.FC = () => {
     }
   };
 
-  const handleUpdatePermission = async () => {
-    if (!selectedPermission) return;
-    
-    try {
-      await dispatch(updatePermission({ 
-        permissionId: selectedPermission.id, 
-        permissionData: editForm 
-      })).unwrap();
-      setIsEditModalOpen(false);
-      setSelectedPermission(null);
-      resetEditForm();
-      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
-      showSuccess('Permission updated successfully!');
-    } catch (error) {
-      console.error('Failed to update permission:', error);
-    }
+  const handleEditPermission = (permission: Permission) => {
+    navigate(`/permissions/${permission.id}/edit`);
   };
 
   const handleDeletePermission = async () => {
@@ -149,25 +129,7 @@ const PermissionsPage: React.FC = () => {
     });
   };
 
-  const resetEditForm = () => {
-    setEditForm({
-      name: '',
-      display_name: '',
-      description: '',
-      status: '1',
-    });
-  };
 
-  const openEditModal = (permission: Permission) => {
-    setSelectedPermission(permission);
-    setEditForm({
-      name: permission.name,
-      display_name: permission.display_name,
-      description: permission.description || '',
-      status: permission.status,
-    });
-    setIsEditModalOpen(true);
-  };
 
   const openDeleteModal = (permission: Permission) => {
     setSelectedPermission(permission);
@@ -218,14 +180,14 @@ const PermissionsPage: React.FC = () => {
       width: 'w-32',
       render: (_: unknown, permission: Permission) => (
         <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEditModal(permission)}
-            leftIcon={<Edit className="h-4 w-4" />}
-          >
-            Edit
-          </Button>
+                     <Button
+             variant="ghost"
+             size="sm"
+             onClick={() => handleEditPermission(permission)}
+             leftIcon={<Edit className="h-4 w-4" />}
+           >
+             Edit
+           </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -414,56 +376,6 @@ const PermissionsPage: React.FC = () => {
         </FormActions>
       </Modal>
 
-      {/* Edit Permission Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Permission"
-        size="lg"
-      >
-        <FormSection>
-          <InputField 
-            label="Permission Name" 
-            name="name" 
-            value={editForm.name || ''} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, name: e.target.value }))} 
-            required 
-          />
-          <InputField 
-            label="Display Name" 
-            name="display_name" 
-            value={editForm.display_name || ''} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, display_name: e.target.value }))} 
-            required 
-          />
-          <TextareaField 
-            label="Description" 
-            name="description" 
-            value={editForm.description || ''} 
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm(prev => ({ ...prev, description: e.target.value }))} 
-            rows={3} 
-          />
-          <SelectField
-            label="Status"
-            name="status"
-            value={editForm.status}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-            options={[
-              { value: '1', label: 'Active' },
-              { value: '0', label: 'Inactive' }
-            ]}
-            required
-          />
-        </FormSection>
-        <FormActions>
-          <Button variant="secondary" onClick={() => setIsEditModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleUpdatePermission}>
-            Update Permission
-          </Button>
-        </FormActions>
-      </Modal>
 
       {/* Delete Confirmation Modal */}
       <Modal

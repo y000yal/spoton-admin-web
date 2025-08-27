@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import apiService from '../../services/api';
+import { authService } from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import type { LoginCredentials, AuthResponse, User } from '../../types';
 
@@ -14,7 +14,10 @@ interface AuthState {
 }
 
 const initialState: AuthState = {
-  user: null,
+  user: (() => {
+    const userData = localStorage.getItem('user');
+    return userData ? JSON.parse(userData) : null;
+  })(),
   token: localStorage.getItem('access_token'),
   refreshToken: localStorage.getItem('refresh_token'),
   isAuthenticated: !!localStorage.getItem('access_token'),
@@ -27,8 +30,17 @@ export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
     try {
-      const response = await apiService.login(credentials);
-      return response;
+      // First, login to get tokens
+      const authResponse = await authService.login(credentials);
+      
+      // After successful login, fetch the complete user data
+      const userData = await authService.getCurrentUser();
+      
+      // Return both auth response and user data
+      return {
+        auth: authResponse,
+        user: userData
+      };
     } catch (error: unknown) {
       console.log('Login error caught:', error, 'Type:', typeof error);
       const errorMessage = extractErrorMessage(error);
@@ -38,11 +50,32 @@ export const login = createAsyncThunk(
   }
 );
 
+export const fetchCurrentUser = createAsyncThunk(
+  'auth/fetchCurrentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      // Get the current user's ID from localStorage or we'll need to decode the token
+      // For now, let's assume we can get it from the token or we'll need to modify the login flow
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        throw new Error('No access token available');
+      }
+      
+      // We need to get the user ID from the token or modify the login response
+      // For now, let's create a placeholder - we'll need to modify this
+      throw new Error('Need to implement user ID extraction from token');
+    } catch (error: unknown) {
+      const errorMessage = extractErrorMessage(error);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 export const refreshToken = createAsyncThunk(
   'auth/refreshToken',
   async (refreshToken: string, { rejectWithValue }) => {
     try {
-      const response = await apiService.refreshToken(refreshToken);
+      const response = await authService.refreshToken(refreshToken);
       return response;
     } catch (error: unknown) {
       console.log('Refresh token error caught:', error, 'Type:', typeof error);
@@ -85,16 +118,19 @@ const authSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(login.fulfilled, (state, action: PayloadAction<AuthResponse>) => {
+      .addCase(login.fulfilled, (state, action: PayloadAction<{ auth: AuthResponse; user: User }>) => {
         state.isLoading = false;
         state.isAuthenticated = true;
-        state.token = action.payload.access_token;
-        state.refreshToken = action.payload.refresh_token;
+        state.token = action.payload.auth.access_token;
+        state.refreshToken = action.payload.auth.refresh_token;
+        state.user = action.payload.user;
         state.error = null;
         
         // Store tokens in localStorage
-        localStorage.setItem('access_token', action.payload.access_token);
-        localStorage.setItem('refresh_token', action.payload.refresh_token);
+        localStorage.setItem('access_token', action.payload.auth.access_token);
+        localStorage.setItem('refresh_token', action.payload.auth.refresh_token);
+        // Store user data in localStorage
+        localStorage.setItem('user', JSON.stringify(action.payload.user));
       })
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;

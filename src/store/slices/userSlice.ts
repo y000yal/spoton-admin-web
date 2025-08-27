@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import apiService from '../../services/api';
+import { userService } from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import type { User, CreateUserRequest, UpdateUserRequest, PaginatedResponse } from '../../types';
 
@@ -44,7 +44,7 @@ export const fetchUsers = createAsyncThunk(
     sort_order?: 'asc' | 'desc';
   }, { rejectWithValue }) => {
     try {
-      const response = await apiService.getUsers(params);
+      const response = await userService.getUsers(params);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -56,7 +56,7 @@ export const fetchUser = createAsyncThunk(
   'users/fetchUser',
   async (userId: number, { rejectWithValue }) => {
     try {
-      const response = await apiService.getUser(userId);
+      const response = await userService.getUser(userId);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -68,7 +68,7 @@ export const createUser = createAsyncThunk(
   'users/createUser',
   async (userData: CreateUserRequest, { rejectWithValue }) => {
     try {
-      const response = await apiService.createUser(userData);
+      const response = await userService.createUser(userData);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -80,7 +80,7 @@ export const updateUser = createAsyncThunk(
   'users/updateUser',
   async ({ userId, userData }: { userId: number; userData: UpdateUserRequest }, { rejectWithValue }) => {
     try {
-      const response = await apiService.updateUser(userId, userData);
+      const response = await userService.updateUser(userId, userData);
       return { userId, response };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -92,7 +92,7 @@ export const deleteUser = createAsyncThunk(
   'users/deleteUser',
   async (userId: number, { rejectWithValue }) => {
     try {
-      await apiService.deleteUser(userId);
+      await userService.deleteUser(userId);
       return userId;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));

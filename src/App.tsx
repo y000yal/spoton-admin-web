@@ -7,9 +7,9 @@ import { ToastProvider } from './contexts/ToastContext';
 import { useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
-import UsersPage from './pages/UsersPage';
-import RolesPage from './pages/RolesPage';
-import PermissionsPage from './pages/PermissionsPage';
+import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from './pages/users';
+import { RolesPage, RoleEditPage } from './pages/roles';
+import { PermissionsPage, PermissionEditPage } from './pages/permissions';
 import Layout from './components/Layout/Layout';
 
 // Protected Route Component
@@ -50,9 +50,21 @@ const App: React.FC = () => {
                 <Route element={<Layout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
+                  
+                  {/* User Routes */}
                   <Route path="users" element={<UsersPage />} />
+                  <Route path="users/create" element={<UserCreatePage />} />
+                  <Route path="users/:userId" element={<UserDetailPage />} />
+                  <Route path="users/:userId/edit" element={<UserEditPage />} />
+                  <Route path="profile" element={<UserDetailPage />} />
+                  
+                  {/* Role Routes */}
                   <Route path="roles" element={<RolesPage />} />
+                  <Route path="roles/:roleId/edit" element={<RoleEditPage />} />
+                  
+                  {/* Permission Routes */}
                   <Route path="permissions" element={<PermissionsPage />} />
+                  <Route path="permissions/:permissionId/edit" element={<PermissionEditPage />} />
                 </Route>
               </Route>
               

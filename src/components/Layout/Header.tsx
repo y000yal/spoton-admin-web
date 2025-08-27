@@ -1,6 +1,7 @@
-import React from 'react';
-import { Menu, Bell, User, ChevronRight } from 'lucide-react';
-import { useLocation, Link } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Menu, Bell, User, ChevronRight, Settings, LogOut } from 'lucide-react';
+import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -8,6 +9,23 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const generateBreadcrumbs = () => {
     const paths = location.pathname.split('/').filter(Boolean);
     return paths.map((path, index) => ({
@@ -68,11 +86,49 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
           </button>
 
           {/* User menu */}
-          <div className="relative">
-            <button className="flex items-center space-x-2 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md">
+          <div className="relative" ref={userMenuRef}>
+            <button 
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center space-x-2 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
+            >
               <User className="h-6 w-6" />
-              <span className="hidden sm:block text-sm font-medium text-gray-700">Admin</span>
+              <span className="hidden sm:block text-sm font-medium text-gray-700">
+                {user?.full_name || user?.username || 'Admin'}
+              </span>
             </button>
+
+            {/* User dropdown menu */}
+            {isUserMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50 border border-gray-200">
+                <Link
+                  to="/profile"
+                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <User className="h-4 w-4 mr-3" />
+                  My Profile
+                </Link>
+                <Link
+                  to="/settings"
+                  className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  onClick={() => setIsUserMenuOpen(false)}
+                >
+                  <Settings className="h-4 w-4 mr-3" />
+                  Settings
+                </Link>
+                <div className="border-t border-gray-100 my-1"></div>
+                <button
+                  onClick={() => {
+                    logout();
+                    setIsUserMenuOpen(false);
+                  }}
+                  className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                >
+                  <LogOut className="h-4 w-4 mr-3" />
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

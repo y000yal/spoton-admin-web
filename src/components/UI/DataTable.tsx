@@ -32,7 +32,7 @@ interface DataTableProps<T> {
   pageSize?: number;
 }
 
-function DataTable<T extends Record<string, any>>({
+function DataTable<T extends Record<string, unknown>>({
   data,
   columns,
   isLoading = false,
@@ -147,7 +147,7 @@ function DataTable<T extends Record<string, any>>({
             <select
               value={localSearchField}
               onChange={(e) => setLocalSearchField(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
             >
               {searchableColumns.map((column) => (
                 <option key={String(column.key)} value={String(column.key)}>
@@ -167,7 +167,7 @@ function DataTable<T extends Record<string, any>>({
                 onChange={(e) => setLocalSearchValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={searchPlaceholder}
-                className="block w-full pl-10 pr-20 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                className="block w-full pl-10 pr-20 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
               />
               {localSearchValue && (
                 <>
@@ -200,7 +200,7 @@ function DataTable<T extends Record<string, any>>({
                   onClearSearch();
                 }
               }}
-              className="px-3 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+              className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:shadow-md"
               title="Refresh data"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -273,7 +273,7 @@ function DataTable<T extends Record<string, any>>({
                     id="pageSize"
                     value={paginatedData.per_page || 10}
                     onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
                   >
                     <option value={10}>10</option>
                     <option value={25}>25</option>
@@ -289,7 +289,7 @@ function DataTable<T extends Record<string, any>>({
               <button
                 onClick={() => onPageChange?.(paginatedData.current_page - 1)}
                 disabled={!paginatedData.prev_page_url}
-                className="px-3 py-1 text-sm text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm text-gray-500 bg-white border border-gray-300 rounded-md shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -301,7 +301,7 @@ function DataTable<T extends Record<string, any>>({
               <button
                 onClick={() => onPageChange?.(paginatedData.current_page + 1)}
                 disabled={!paginatedData.next_page_url}
-                className="px-3 py-1 text-sm text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-3 py-1 text-sm text-gray-500 bg-white border border-gray-300 rounded-md shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

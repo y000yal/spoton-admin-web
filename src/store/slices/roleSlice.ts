@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import apiService from '../../services/api';
+import { roleService } from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import type { Role, CreateRoleRequest, UpdateRoleRequest, PaginatedResponse } from '../../types';
 
@@ -30,7 +30,7 @@ export const fetchRoles = createAsyncThunk(
     sort_order?: 'asc' | 'desc';
   } = {}, { rejectWithValue }) => {
     try {
-      const response = await apiService.getRoles(params);
+      const response = await roleService.getRoles(params);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -42,7 +42,7 @@ export const fetchRole = createAsyncThunk(
   'roles/fetchRole',
   async (roleId: number, { rejectWithValue }) => {
     try {
-      const response = await apiService.getRole(roleId);
+      const response = await roleService.getRole(roleId);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -54,7 +54,7 @@ export const createRole = createAsyncThunk(
   'roles/createRole',
   async (roleData: CreateRoleRequest, { rejectWithValue }) => {
     try {
-      const response = await apiService.createRole(roleData);
+      const response = await roleService.createRole(roleData);
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -66,7 +66,7 @@ export const updateRole = createAsyncThunk(
   'roles/updateRole',
   async ({ roleId, roleData }: { roleId: number; roleData: UpdateRoleRequest }, { rejectWithValue }) => {
     try {
-      const response = await apiService.updateRole(roleId, roleData);
+      const response = await roleService.updateRole(roleId, roleData);
       return { roleId, response };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -78,7 +78,7 @@ export const deleteRole = createAsyncThunk(
   'roles/deleteRole',
   async (roleId: number, { rejectWithValue }) => {
     try {
-      await apiService.deleteRole(roleId);
+      await roleService.deleteRole(roleId);
       return roleId;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));

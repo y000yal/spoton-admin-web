@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Edit, Trash2, Shield, Users, Key, RefreshCw } from 'lucide-react';
-import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { 
   fetchRoles, 
   createRole, 
-  updateRole, 
   deleteRole 
-} from '../store/slices/roleSlice';
-import { fetchPermissions } from '../store/slices/permissionSlice';
-import type { Role, CreateRoleRequest, UpdateRoleRequest } from '../types';
-import apiService from '../services/api';
+} from '../../store/slices/roleSlice';
+import { fetchPermissions } from '../../store/slices/permissionSlice';
+import type { Role, CreateRoleRequest } from '../../types';
+import { roleService } from '../../services/api';
 import { 
   Button, 
   Modal, 
@@ -20,29 +20,22 @@ import {
   FormSection, 
   FormActions, 
   SelectField 
-} from '../components/UI';
+} from '../../components/UI';
 
 const RolesPage: React.FC = () => {
+  const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { roles, isLoading, error } = useAppSelector(state => state.roles);
   const { permissions } = useAppSelector(state => state.permissions);
 
   // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isPermissionsModalOpen, setIsPermissionsModalOpen] = useState(false);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
 
   // Form states
   const [createForm, setCreateForm] = useState<CreateRoleRequest>({
-    name: '',
-    display_name: '',
-    description: '',
-    status: '1',
-  });
-
-  const [editForm, setEditForm] = useState<UpdateRoleRequest>({
     name: '',
     display_name: '',
     description: '',
@@ -157,18 +150,8 @@ const RolesPage: React.FC = () => {
     }
   };
 
-  const handleUpdateRole = async () => {
-    if (!selectedRole) return;
-    
-    try {
-      await dispatch(updateRole({ roleId: selectedRole.id, roleData: editForm })).unwrap();
-      setIsEditModalOpen(false);
-      setSelectedRole(null);
-      resetEditForm();
-      dispatch(fetchRoles({ page: 1, limit: 10 }));
-    } catch (error) {
-      console.error('Failed to update role:', error);
-    }
+  const handleEditRole = (role: Role) => {
+    navigate(`/roles/${role.id}/edit`);
   };
 
   const handleDeleteRole = async () => {
@@ -193,24 +176,7 @@ const RolesPage: React.FC = () => {
     });
   };
 
-  const resetEditForm = () => {
-    setEditForm({
-      name: '',
-      display_name: '',
-      description: '',
-      status: '1',
-    });
-  };
 
-  const openEditModal = (role: Role) => {
-    setSelectedRole(role);
-    setEditForm({
-      name: role.name,
-      description: role.description || '',
-      status: role.status,
-    });
-    setIsEditModalOpen(true);
-  };
 
   const openDeleteModal = (role: Role) => {
     setSelectedRole(role);
@@ -224,7 +190,7 @@ const RolesPage: React.FC = () => {
     
     try {
       // Fetch role-specific permissions using the new endpoint
-      const rolePermissionsData = await apiService.getRolePermissions(role.id);
+      const rolePermissionsData = await roleService.getRolePermissions(role.id);
      
       // Fetch all available permissions
       if (!permissionsLoaded || (Array.isArray(permissions) ? permissions.length === 0 : (permissions?.data?.length === 0)) || shouldRefreshPermissions()) {
@@ -262,7 +228,7 @@ const RolesPage: React.FC = () => {
     setSavingPermissions(true);
     try {
       // Call the API to sync permissions for the role
-      await apiService.assignPermissions(selectedRole.id, selectedPermissions);
+      await roleService.assignPermissions(selectedRole.id, selectedPermissions);
       
       setIsPermissionsModalOpen(false);
       setSelectedRole(null);
@@ -346,14 +312,14 @@ const RolesPage: React.FC = () => {
           >
             Permissions
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEditModal(role)}
-            leftIcon={<Edit className="h-4 w-4" />}
-          >
-            Edit
-          </Button>
+                     <Button
+             variant="ghost"
+             size="sm"
+             onClick={() => handleEditRole(role)}
+             leftIcon={<Edit className="h-4 w-4" />}
+           >
+             Edit
+           </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -544,45 +510,7 @@ const RolesPage: React.FC = () => {
         </FormActions>
       </Modal>
 
-      {/* Edit Role Modal */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Edit Role"
-        size="lg"
-      >
-        <FormSection>
-          <InputField 
-            label="Role Name" 
-            name="name" 
-            value={editForm.name || ''} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, name: e.target.value }))} 
-            required 
-          />
-          <InputField 
-            label="Display Name" 
-            name="display_name" 
-            value={editForm.display_name || ''} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm(prev => ({ ...prev, display_name: e.target.value }))} 
-            required 
-          />
-          <TextareaField 
-            label="Description" 
-            name="description" 
-            value={editForm.description || ''} 
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setEditForm(prev => ({ ...prev, description: e.target.value }))} 
-            rows={3} 
-          />
-        </FormSection>
-        <FormActions>
-          <Button variant="secondary" onClick={() => setIsEditModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleUpdateRole}>
-            Update Role
-          </Button>
-        </FormActions>
-      </Modal>
+      
 
       {/* Delete Confirmation Modal */}
       <Modal
