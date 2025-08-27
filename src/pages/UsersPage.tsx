@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Users } from 'lucide-react';
-import {
-  DataTable,
-  Button,
-  Modal,
-  Card,
-  InputField,
-  SelectField,
-  FormRow,
-  FormSection,
-  FormActions,
-} from '../components/UI';
+import type { User, CreateUserRequest, UpdateUserRequest } from '../types';
 import { useToast } from '../contexts/ToastContext';
-import apiService from '../services/api';
-import type { User, Role, CreateUserRequest, UpdateUserRequest, PaginatedResponse } from '../types';
+import { DataTable, Button, Card } from '../components/UI';
+import { Modal } from '../components/UI';
+import { FormSection, FormRow, InputField, SelectField, FormActions } from '../components/UI';
+import { Plus, User as UserIcon } from 'lucide-react';
+import { useAppDispatch, useAppSelector } from '../store/hooks';
+import { fetchUsers, createUser, updateUser, deleteUser } from '../store/slices/userSlice';
+import { fetchRoles } from '../store/slices/roleSlice';
 
 const UsersPage: React.FC = () => {
   const { showSuccess, showError } = useToast();
-  const [users, setUsers] = useState<PaginatedResponse<User> | null>(null);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const dispatch = useAppDispatch();
+  const { users, isLoading, error } = useAppSelector(state => state.users);
+  const { roles } = useAppSelector(state => state.roles);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -33,77 +27,57 @@ const UsersPage: React.FC = () => {
   const [createForm, setCreateForm] = useState<CreateUserRequest>({
     role_id: 1,
     email: '',
-    full_name: { first_name: '', middle_name: '', last_name: '' },
+    full_name: {
+      first_name: '',
+      middle_name: '',
+      last_name: ''
+    },
     username: '',
     password: '',
     confirm_password: '',
     address: '',
-    mobile_no: 0,
+    mobile_no: 0
   });
 
   const [editForm, setEditForm] = useState<UpdateUserRequest>({
     role_id: 1,
-    full_name: { first_name: '', middle_name: '', last_name: '' },
+    full_name: {
+      first_name: '',
+      middle_name: '',
+      last_name: ''
+    },
     email: '',
     username: '',
+    status: 1
   });
 
+  // Search and pagination state
+  const [searchField, setSearchField] = useState('username');
+  const [searchValue, setSearchValue] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+
   useEffect(() => {
-    fetchUsers();
-    fetchRoles();
-  }, [currentPage, searchQuery]);
+    dispatch(fetchUsers({ page: 1, limit: 10 }));
+    dispatch(fetchRoles({ page: 1, limit: 100 }));
+  }, [dispatch]); // Initial load only
 
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const response = await apiService.getUsers({
-        page: currentPage,
-        limit: 10,
-        search: searchQuery || undefined,
-      });
-      setUsers(response);
-    } catch (error: any) {
-      console.error('Failed to fetch users:', error);
-      
-      if (error?.response?.status === 401) {
-        showError('Session expired. Please login again.');
-      } else if (error?.response?.status === 403) {
-        showError('You do not have permission to view users.');
-      } else {
-        showError('Failed to load users. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchRoles = async () => {
-    try {
-      const response = await apiService.getRoles();
-      setRoles(response.data || []);
-    } catch (error: any) {
-      console.error('Failed to fetch roles:', error);
-      
-      if (error?.response?.status === 401) {
-        showError('Session expired. Please login again.');
-      } else if (error?.response?.status === 403) {
-        showError('You do not have permission to view roles.');
-      } else {
-        showError('Failed to load roles. Please try again.');
-      }
-    }
-  };
+  // Remove the search-related useEffect since we handle search directly in handleSearch
+  // useEffect(() => {
+  //   if (searchField || searchValue) {
+  //     dispatch(fetchUsers({ page: currentPage, limit: 10 }));
+  //   }
+  // }, [currentPage, searchField, searchValue, dispatch]); // Search and pagination changes
 
   const handleCreateUser = async () => {
     // Clear previous field errors
     setCreateFieldErrors({});
     
     try {
-      await apiService.createUser(createForm);
+      await dispatch(createUser(createForm)).unwrap();
       showSuccess('User created successfully!');
       setIsCreateModalOpen(false);
       resetCreateForm();
-      fetchUsers();
+      dispatch(fetchUsers({ page: 1, limit: 10 }));
     } catch (error: any) {
       console.error('Failed to create user:', error);
       
@@ -145,12 +119,12 @@ const UsersPage: React.FC = () => {
     setFieldErrors({});
     
     try {
-      await apiService.updateUser(selectedUser.id, editForm);
+      await dispatch(updateUser({ userId: selectedUser.id, userData: editForm })).unwrap();
       showSuccess('User updated successfully!');
       setIsEditModalOpen(false);
       setSelectedUser(null);
       resetEditForm();
-      fetchUsers();
+      dispatch(fetchUsers({ page: 1, limit: 10 }));
     } catch (error: any) {
       console.error('Failed to update user:', error);
       
@@ -189,22 +163,14 @@ const UsersPage: React.FC = () => {
     if (!selectedUser) return;
     
     try {
-      await apiService.deleteUser(selectedUser.id);
+      await dispatch(deleteUser(selectedUser.id)).unwrap();
       showSuccess('User deleted successfully!');
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
-      fetchUsers();
+      dispatch(fetchUsers({ page: 1, limit: 10 }));
     } catch (error: any) {
       console.error('Failed to delete user:', error);
-      
-      // Handle specific error cases
-      if (error?.response?.status === 404) {
-        showError('User not found. It may have been deleted already.');
-      } else if (error?.response?.status === 403) {
-        showError('You do not have permission to delete this user.');
-      } else {
-        showError('Failed to delete user. Please try again.');
-      }
+      showError('Failed to delete user. Please try again.');
     }
   };
 
@@ -259,6 +225,7 @@ const UsersPage: React.FC = () => {
       },
       email: user.email || '',
       username: user.username || '',
+      status: user.status || 0,
     });
     setIsEditModalOpen(true);
   };
@@ -278,82 +245,126 @@ const UsersPage: React.FC = () => {
       key: 'id',
       header: 'ID',
       width: 'w-16',
+      searchable: false,
     },
     {
       key: 'full_name',
       header: 'Full Name',
-      render: (value: string) => (
-        <div className="font-medium text-gray-900">{value}</div>
+      searchable: true,
+      render: (value: unknown) => (
+        <div className="font-medium text-gray-900">{String(value)}</div>
       ),
     },
     {
       key: 'email',
       header: 'Email',
-      render: (value: string) => (
-        <div className="text-gray-600">{value}</div>
+      searchable: true,
+      render: (value: unknown) => (
+        <div className="text-gray-600">{String(value)}</div>
       ),
     },
     {
       key: 'username',
       header: 'Username',
+      searchable: true,
     },
     {
       key: 'status',
       header: 'Status',
-      render: (value: string) => (
+      searchable: true,
+      render: (value: unknown) => (
         <span className={`px-2 py-1 text-xs rounded-full ${
-          value === '1' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          String(value) === '1' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
         }`}>
-          {value === '1' ? 'Active' : 'Inactive'}
+          {String(value) === '1' ? 'Active' : 'Inactive'}
         </span>
       ),
     },
     {
       key: 'role',
       header: 'Role',
-      render: (value: Role) => (
-        <span className="text-gray-600">{value?.name || '-'}</span>
-      ),
+      searchable: false,
+      render: (value: unknown, item: User) => {
+        const role = (item as any).role;
+        return role ? (
+          <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+            {role.display_name || role.name}
+          </span>
+        ) : (
+          <span className="text-gray-400">-</span>
+        );
+      },
     },
     {
       key: 'created_at',
       header: 'Created At',
-      render: (value: string) => (
-        <span className="text-gray-500">{new Date(value).toLocaleDateString()}</span>
+      searchable: false,
+      render: (value: unknown) => (
+        <span className="text-gray-600">
+          {value ? new Date(String(value)).toLocaleDateString() : '-'}
+        </span>
       ),
     },
     {
       key: 'actions',
       header: 'Actions',
-      width: 'w-32',
-      render: (_: any, user: User) => (
+      searchable: false,
+      render: (value: unknown, item: User) => (
         <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openEditModal(user)}
-            leftIcon={<Edit className="h-4 w-4" />}
+          <button
+            onClick={() => openEditModal(item)}
+            className="text-blue-600 hover:text-blue-800"
           >
             Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openDeleteModal(user)}
-            leftIcon={<Trash2 className="h-4 w-4" />}
-            className="text-red-600 hover:text-red-700"
+          </button>
+          <button
+            onClick={() => openDeleteModal(item)}
+            className="text-red-600 hover:text-red-800"
           >
             Delete
-          </Button>
+          </button>
         </div>
       ),
     },
   ];
 
-  const roleOptions = roles.map(role => ({
+  const roleOptions = roles?.data?.map(role => ({
     value: role.id,
     label: role.name,
-  }));
+  })) || [];
+
+  const statusOptions = [
+    { value: 1, label: 'Active' },
+    { value: 0, label: 'Inactive' },
+    { value: 2, label: 'Email Pending' },
+  ];
+
+  const handleSearch = (field: string, value: string) => {
+    setSearchField(field);
+    setSearchValue(value);
+    setCurrentPage(1); // Reset to first page on new search
+    
+    // Only add filter parameters if there's a search value
+    const params: any = { 
+      page: 1, 
+      limit: 10
+    };
+    
+    if (value.trim()) {
+      // Only use Laravel-style format: filter[field_name] = value
+      params[`filter[${field}]`] = value.trim();
+    }
+    
+    dispatch(fetchUsers(params));
+  };
+
+  const handleClearSearch = () => {
+    setSearchField('full_name');
+    setSearchValue('');
+    setCurrentPage(1); // Reset to first page on clear
+    // Fetch fresh data from Redux store
+    dispatch(fetchUsers({ page: 1, limit: 10 }));
+  };
 
   return (
     <div className="space-y-6">
@@ -376,7 +387,7 @@ const UsersPage: React.FC = () => {
         <Card>
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Users className="h-8 w-8 text-primary-600" />
+              <UserIcon className="h-8 w-8 text-primary-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Users</p>
@@ -393,9 +404,41 @@ const UsersPage: React.FC = () => {
         data={users || { data: [], current_page: 1, total: 0, from: 0, to: 0, last_page: 1, prev_page_url: null, next_page_url: null, first_page_url: '', last_page_url: '', path: '', per_page: 10, links: [] }}
         columns={tableColumns}
         isLoading={isLoading}
-        onPageChange={setCurrentPage}
-        onSearch={setSearchQuery}
+        onSearch={handleSearch}
+        onClearSearch={handleClearSearch}
+        onPageChange={(page) => {
+          setCurrentPage(page);
+          const params: any = { 
+            page, 
+            limit: 10
+          };
+          
+          if (searchValue.trim()) {
+            // Only use Laravel-style format: filter[field_name] = value
+            params[`filter[${searchField}]`] = searchValue.trim();
+          }
+          
+          dispatch(fetchUsers(params));
+        }}
+        onPageSizeChange={(newPageSize) => {
+          setCurrentPage(1); // Reset to first page when changing page size
+          const params: any = { 
+            page: 1, 
+            limit: newPageSize
+          };
+          
+          if (searchValue.trim()) {
+            // Only use Laravel-style format: filter[field_name] = value
+            params[`filter[${searchField}]`] = searchValue.trim();
+          }
+          
+          dispatch(fetchUsers(params));
+        }}
+        searchField={searchField}
+        searchValue={searchValue}
         searchPlaceholder="Search users..."
+        showSearch={true}
+        showPagination={true}
       />
 
       {/* Create User Modal */}
@@ -632,6 +675,20 @@ const UsersPage: React.FC = () => {
               }))}
               required
               error={fieldErrors['username']}
+            />
+          </FormRow>
+          <FormRow>
+          <SelectField
+              label="Status"
+              name="status"
+              value={editForm?.status || 1}
+              onChange={(e) => setEditForm(prev => ({
+                ...prev,
+                status: Number(e.target.value)
+              }))}
+              options={statusOptions}
+              required
+              error={fieldErrors['status']}
             />
           </FormRow>
         </FormSection>

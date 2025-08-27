@@ -105,8 +105,8 @@ const LoginPage: React.FC = () => {
               
               <div className="text-center text-sm text-gray-600">
                 <p>Demo Credentials:</p>
-                <p>Username: admin@spoton.me</p>
-                <p>Password: password</p>
+                <p>Username: admin@spoton.com</p>
+                <p>Password: spotAdmin@2025</p>
               </div>
             </form>
           </CardContent>

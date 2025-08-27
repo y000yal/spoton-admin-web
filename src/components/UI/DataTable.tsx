@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import type { PaginatedResponse } from '../../types';
 
 interface Column<T> {
   key: keyof T | string;
   header: string;
-  render?: (value: any, item: T) => React.ReactNode;
+  render?: (value: unknown, item: T) => React.ReactNode;
   sortable?: boolean;
   width?: string;
+  searchable?: boolean;
 }
 
 interface DataTableProps<T> {
@@ -15,12 +16,20 @@ interface DataTableProps<T> {
   columns: Column<T>[];
   isLoading?: boolean;
   onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   onSort?: (field: string, direction: 'asc' | 'desc') => void;
-  onSearch?: (query: string) => void;
+  onSearch?: (filterField: string, filterValue: string) => void;
+  onClearSearch?: () => void;
   searchPlaceholder?: string;
   showSearch?: boolean;
   showPagination?: boolean;
   className?: string;
+  // Search state props
+  searchField?: string;
+  searchValue?: string;
+  // Pagination state props
+  currentPage?: number;
+  pageSize?: number;
 }
 
 function DataTable<T extends Record<string, any>>({
@@ -28,20 +37,28 @@ function DataTable<T extends Record<string, any>>({
   columns,
   isLoading = false,
   onPageChange,
+  onPageSizeChange,
   onSort,
   onSearch,
+  onClearSearch,
   searchPlaceholder = 'Search...',
   showSearch = true,
   showPagination = true,
   className = '',
+  searchField = '',
+  searchValue = '',
 }: DataTableProps<T>) {
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [localSearchField, setLocalSearchField] = useState(searchField);
+  const [localSearchValue, setLocalSearchValue] = useState(searchValue);
 
   const isPaginated = 'current_page' in data;
   const paginatedData = isPaginated ? data : null;
   const tableData = isPaginated ? data.data : data;
+
+  // Get searchable columns (default to all if not specified)
+  const searchableColumns = columns.filter(col => col.searchable !== false);
 
   const handleSort = (field: string) => {
     if (!onSort) return;
@@ -52,10 +69,15 @@ function DataTable<T extends Record<string, any>>({
     onSort(field, newDirection);
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    if (onSearch) {
-      onSearch(query);
+  const handleSearch = () => {
+    if (localSearchValue.trim() && onSearch) {
+      onSearch(localSearchField, localSearchValue.trim());
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
     }
   };
 
@@ -120,15 +142,71 @@ function DataTable<T extends Record<string, any>>({
       {/* Search and Filters */}
       {showSearch && (
         <div className="p-4 border-b border-gray-200">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+          <div className="flex items-center space-x-3">
+            {/* Field Selector */}
+            <select
+              value={localSearchField}
+              onChange={(e) => setLocalSearchField(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              {searchableColumns.map((column) => (
+                <option key={String(column.key)} value={String(column.key)}>
+                  {column.header}
+                </option>
+              ))}
+            </select>
+
+            {/* Search Input */}
+            <div className="relative flex-1 max-w-full">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={localSearchValue}
+                onChange={(e) => setLocalSearchValue(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder={searchPlaceholder}
+                className="block w-full pl-10 pr-20 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+              {localSearchValue && (
+                <>
+                  {/* Search Button - Inside the input field */}
+                  <button
+                    onClick={handleSearch}
+                    className="absolute inset-y-0 right-8 pr-3 flex items-center text-primary-600 hover:text-primary-700 text-sm font-medium"
+                  >
+                    Search
+                  </button>
+                  {/* X Button - Clear input and fetch default values */}
+                  <button
+                    onClick={() => {
+                      setLocalSearchValue('');
+                     
+                    }}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => {
+                setLocalSearchValue('');
+                if (onClearSearch) {
+                  onClearSearch();
+                }
+              }}
+              className="px-3 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors duration-200"
+              title="Refresh data"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
           </div>
         </div>
       )}
@@ -180,9 +258,33 @@ function DataTable<T extends Record<string, any>>({
       {showPagination && paginatedData && (
         <div className="px-6 py-3 border-t border-gray-200 bg-gray-50">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700">
-              Showing {paginatedData.from} to {paginatedData.to} of {paginatedData.total} results
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-700">
+                Showing {paginatedData.from} to {paginatedData.to} of {paginatedData.total} results
+              </div>
+              
+              {/* Page Size Dropdown */}
+              {onPageSizeChange && (
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="pageSize" className="text-sm text-gray-700">
+                    Show:
+                  </label>
+                  <select
+                    id="pageSize"
+                    value={paginatedData.per_page || 10}
+                    onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                    className="px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span className="text-sm text-gray-700">per page</span>
+                </div>
+              )}
             </div>
+            
             <div className="flex items-center space-x-2">
               <button
                 onClick={() => onPageChange?.(paginatedData.current_page - 1)}

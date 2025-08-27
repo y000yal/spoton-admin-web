@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Edit, Trash2, Key, Shield, Lock } from 'lucide-react';
 import {
   DataTable, Button, Modal, Card,
-  InputField, TextareaField, FormSection, FormActions, SelectField,
+  InputField, TextareaField, FormSection, FormActions, SelectField, ErrorMessage
 } from '../components/UI';
 import { useAppSelector, useAppDispatch } from '../store/hooks';
 import { fetchPermissions, createPermission, updatePermission, deletePermission, clearError } from '../store/slices/permissionSlice';
 import { useToast } from '../contexts/ToastContext';
 import type { Permission, CreatePermissionRequest, UpdatePermissionRequest } from '../types';
+
 
 const PermissionsPage: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -35,9 +36,57 @@ const PermissionsPage: React.FC = () => {
     status: '1',
   });
 
+  // Search and pagination state
+  const [searchField, setSearchField] = useState('name');
+  const [searchValue, setSearchValue] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [searchLoading, setSearchLoading] = useState(false); // Local loading state for search operations
+
+  // Search functions
+  const handleSearch = (field: string, value: string) => {
+    setSearchField(field);
+    setSearchValue(value);
+    setCurrentPage(1);
+  };
+
+  const handleClearSearch = () => {
+    setSearchField('name');
+    setSearchValue('');
+    setCurrentPage(1);
+    setSearchLoading(false); // Clear search loading state
+    // Fetch fresh data from Redux store
+    dispatch(fetchPermissions({ page: 1, limit: pageSize }));
+  };
+
+  // Handle search and pagination changes (only after initial load)
   useEffect(() => {
-    dispatch(fetchPermissions());
-  }, [dispatch]);
+    // Skip the first render to prevent duplicate API calls
+    const isInitialRender = currentPage === 1 && !searchValue.trim();
+    if (isInitialRender) return;
+
+    const params: {
+      limit?: number;
+      page?: number;
+      filter_field?: string;
+      filter_value?: string;
+    } = {
+      limit: pageSize,
+      page: currentPage,
+    };
+
+    if (searchValue.trim()) {
+      // Only use Laravel-style format: filter[field_name] = value
+      (params as any)[`filter[${searchField}]`] = searchValue.trim();
+    }
+
+    dispatch(fetchPermissions(params));
+  }, [searchField, searchValue, currentPage, pageSize, dispatch]);
+
+  // Initial load
+  useEffect(() => {
+    dispatch(fetchPermissions({ page: 1, limit: pageSize }));
+  }, [dispatch, pageSize]);
 
   // Show error toast when error changes
   useEffect(() => {
@@ -52,7 +101,7 @@ const PermissionsPage: React.FC = () => {
       await dispatch(createPermission(createForm)).unwrap();
       setIsCreateModalOpen(false);
       resetCreateForm();
-      dispatch(fetchPermissions());
+      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
       showSuccess('Permission created successfully!');
     } catch (error) {
       console.error('Failed to create permission:', error);
@@ -70,7 +119,7 @@ const PermissionsPage: React.FC = () => {
       setIsEditModalOpen(false);
       setSelectedPermission(null);
       resetEditForm();
-      dispatch(fetchPermissions());
+      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
       showSuccess('Permission updated successfully!');
     } catch (error) {
       console.error('Failed to update permission:', error);
@@ -84,7 +133,7 @@ const PermissionsPage: React.FC = () => {
       await dispatch(deletePermission(selectedPermission.id)).unwrap();
       setIsDeleteModalOpen(false);
       setSelectedPermission(null);
-      dispatch(fetchPermissions());
+      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
       showSuccess('Permission deleted successfully!');
     } catch (error) {
       console.error('Failed to delete permission:', error);
@@ -209,14 +258,14 @@ const PermissionsPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <ErrorMessage 
-          error={error} 
-          onClose={handleClearError}
-          className="mb-6"
-        />
-      )}
+             {/* Error Display */}
+       {error && (
+         <ErrorMessage 
+           error={error} 
+           onClose={() => dispatch(clearError())}
+           className="mb-6"
+         />
+       )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -228,7 +277,7 @@ const PermissionsPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {permissions?.length || 0}
+                {Array.isArray(permissions) ? permissions.length : (permissions?.data?.length || 0)}
               </p>
             </div>
           </div>
@@ -241,7 +290,10 @@ const PermissionsPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Active Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {permissions?.filter(permission => permission.status === '1').length || 0}
+                {Array.isArray(permissions) 
+                  ? permissions.filter(permission => permission.status === '1').length 
+                  : (permissions?.data?.filter(permission => permission.status === '1').length || 0)
+                }
               </p>
             </div>
           </div>
@@ -254,20 +306,58 @@ const PermissionsPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Inactive Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {permissions?.filter(permission => permission.status === '0').length || 0}
+                {Array.isArray(permissions) 
+                  ? permissions.filter(permission => permission.status === '0').length 
+                  : (permissions?.data?.filter(permission => permission.status === '0').length || 0)
+                }
               </p>
             </div>
           </div>
         </Card>
       </div>
 
+  
+
       {/* Permissions Table */}
       <DataTable
-        data={permissions || []}
+        data={permissions || { data: [], current_page: 1, total: 0, from: 0, to: 0, last_page: 1, prev_page_url: null, next_page_url: null, first_page_url: '', last_page_url: '', path: '', per_page: 10, links: [] }}
         columns={tableColumns}
-        isLoading={isLoading}
+        isLoading={isLoading || searchLoading}
+        onSearch={handleSearch}
+        onClearSearch={handleClearSearch}
+        onPageChange={(page) => {
+          setCurrentPage(page);
+          const params: any = { 
+            page, 
+            limit: pageSize
+          };
+          
+          if (searchValue.trim()) {
+            // Only use Laravel-style format: filter[field_name] = value
+            params[`filter[${searchField}]`] = searchValue.trim();
+          }
+          
+          dispatch(fetchPermissions(params));
+        }}
+        onPageSizeChange={(newPageSize) => {
+          setCurrentPage(1); // Reset to first page when changing page size
+          const params: any = { 
+            page: 1, 
+            limit: newPageSize
+          };
+          
+          if (searchValue.trim()) {
+            // Only use Laravel-style format: filter[field_name] = value
+            params[`filter[${searchField}]`] = searchValue.trim();
+          }
+          
+          dispatch(fetchPermissions(params));
+        }}
+        searchField={searchField}
+        searchValue={searchValue}
         searchPlaceholder="Search permissions..."
-        showPagination={false}
+        showSearch={true}
+        showPagination={true}
       />
 
       {/* Create Permission Modal */}

@@ -35,7 +35,14 @@ const initialState: UserState = {
 // Async thunks
 export const fetchUsers = createAsyncThunk(
   'users/fetchUsers',
-  async (params: { page: number; limit: number; search?: string }, { rejectWithValue }) => {
+  async (params: { 
+    page: number; 
+    limit: number; 
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }, { rejectWithValue }) => {
     try {
       const response = await apiService.getUsers(params);
       return response;

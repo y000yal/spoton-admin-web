@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
 import type { AuthResponse, LoginCredentials } from '../types';
+import { buildQueryParams } from '../utils/queryBuilder';
 
 const API_BASE_URL = 'https://spoton.me/api';
 
@@ -129,8 +130,16 @@ class ApiService {
   }
 
   // User management methods
-  async getUsers(params?: any) {
-    const response = await this.api.get('/admin/account/v1/users', { params });
+  async getUsers(params?: {
+    limit?: number;
+    page?: number;
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) {
+    const queryParams = buildQueryParams(params || {});
+    const response = await this.api.get('/admin/account/v1/users', { params: queryParams });
     return response.data;
   }
 
@@ -155,8 +164,16 @@ class ApiService {
   }
 
   // Role management methods
-  async getRoles() {
-    const response = await this.api.get('/admin/authorization/v1/roles');
+  async getRoles(params?: {
+    limit?: number;
+    page?: number;
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) {
+    const queryParams = buildQueryParams(params || {});
+    const response = await this.api.get('/admin/authorization/v1/roles', { params: queryParams });
     return response.data;
   }
 
@@ -181,8 +198,16 @@ class ApiService {
   }
 
   // Permission management methods
-  async getPermissions() {
-    const response = await this.api.get('/admin/authorization/v1/permissions');
+  async getPermissions(params?: {
+    limit?: number;
+    page?: number;
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }) {
+    const queryParams = buildQueryParams(params || {});
+    const response = await this.api.get('/admin/authorization/v1/permissions', { params: queryParams });
     return response.data;
   }
 

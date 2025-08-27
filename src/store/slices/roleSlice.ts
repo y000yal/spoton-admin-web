@@ -2,17 +2,17 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import apiService from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
-import type { Role, CreateRoleRequest, UpdateRoleRequest } from '../../types';
+import type { Role, CreateRoleRequest, UpdateRoleRequest, PaginatedResponse } from '../../types';
 
 interface RoleState {
-  roles: Role[];
+  roles: PaginatedResponse<Role> | null;
   currentRole: Role | null;
   isLoading: boolean;
   error: string | null;
 }
 
 const initialState: RoleState = {
-  roles: [],
+  roles: null,
   currentRole: null,
   isLoading: false,
   error: null,
@@ -21,10 +21,17 @@ const initialState: RoleState = {
 // Async thunks
 export const fetchRoles = createAsyncThunk(
   'roles/fetchRoles',
-  async (_, { rejectWithValue }) => {
+  async (params: {
+    limit?: number;
+    page?: number;
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  } = {}, { rejectWithValue }) => {
     try {
-      const response = await apiService.getRoles();
-      return response.data || [];
+      const response = await apiService.getRoles(params);
+      return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
     }
@@ -97,7 +104,7 @@ const roleSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(fetchRoles.fulfilled, (state, action: PayloadAction<Role[]>) => {
+      .addCase(fetchRoles.fulfilled, (state, action: PayloadAction<PaginatedResponse<Role>>) => {
         state.isLoading = false;
         state.roles = action.payload;
         state.error = null;
@@ -141,14 +148,16 @@ const roleSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(updateRole.fulfilled, (state, action: PayloadAction<{ roleId: number; response: any }>) => {
+      .addCase(updateRole.fulfilled, (state, action: PayloadAction<{ roleId: number; response: Role }>) => {
         state.isLoading = false;
         state.error = null;
         
         // Update role in the list if it exists
-        const roleIndex = state.roles.findIndex(role => role.id === action.payload.roleId);
-        if (roleIndex !== -1) {
-          state.roles[roleIndex] = { ...state.roles[roleIndex] };
+        if (state.roles?.data) {
+          const roleIndex = state.roles.data.findIndex(role => role.id === action.payload.roleId);
+          if (roleIndex !== -1) {
+            state.roles.data[roleIndex] = { ...state.roles.data[roleIndex] };
+          }
         }
       })
       .addCase(updateRole.rejected, (state, action) => {
@@ -166,7 +175,10 @@ const roleSlice = createSlice({
         state.error = null;
         
         // Remove role from the list
-        state.roles = state.roles.filter(role => role.id !== action.payload);
+        if (state.roles?.data) {
+          state.roles.data = state.roles.data.filter(role => role.id !== action.payload);
+          state.roles.total = Math.max(0, state.roles.total - 1);
+        }
       })
       .addCase(deleteRole.rejected, (state, action) => {
         state.isLoading = false;

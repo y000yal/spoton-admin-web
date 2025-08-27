@@ -2,17 +2,17 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import apiService from '../../services/api';
 import { extractErrorMessage } from '../../utils/errorHandler';
-import type { Permission, CreatePermissionRequest, UpdatePermissionRequest } from '../../types';
+import type { Permission, CreatePermissionRequest, UpdatePermissionRequest, PaginatedResponse } from '../../types';
 
 interface PermissionState {
-  permissions: Permission[];
+  permissions: PaginatedResponse<Permission> | null;
   currentPermission: Permission | null;
   isLoading: boolean;
   error: string | null;
 }
 
 const initialState: PermissionState = {
-  permissions: [],
+  permissions: null,
   currentPermission: null,
   isLoading: false,
   error: null,
@@ -21,10 +21,17 @@ const initialState: PermissionState = {
 // Async thunks
 export const fetchPermissions = createAsyncThunk(
   'permissions/fetchPermissions',
-  async (_, { rejectWithValue }) => {
+  async (params: {
+    limit?: number;
+    page?: number;
+    filter_field?: string;
+    filter_value?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  } = {}, { rejectWithValue }) => {
     try {
-      const response = await apiService.getPermissions();
-      return response.data || [];
+      const response = await apiService.getPermissions(params);
+      return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
     }
@@ -97,7 +104,7 @@ const permissionSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(fetchPermissions.fulfilled, (state, action: PayloadAction<Permission[]>) => {
+      .addCase(fetchPermissions.fulfilled, (state, action: PayloadAction<PaginatedResponse<Permission>>) => {
         state.isLoading = false;
         state.permissions = action.payload;
         state.error = null;
@@ -141,14 +148,16 @@ const permissionSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(updatePermission.fulfilled, (state, action: PayloadAction<{ permissionId: number; response: any }>) => {
+      .addCase(updatePermission.fulfilled, (state, action: PayloadAction<{ permissionId: number; response: Permission }>) => {
         state.isLoading = false;
         state.error = null;
         
         // Update permission in the list if it exists
-        const permissionIndex = state.permissions.findIndex(permission => permission.id === action.payload.permissionId);
-        if (permissionIndex !== -1) {
-          state.permissions[permissionIndex] = { ...state.permissions[permissionIndex] };
+        if (state.permissions?.data) {
+          const permissionIndex = state.permissions.data.findIndex(permission => permission.id === action.payload.permissionId);
+          if (permissionIndex !== -1) {
+            state.permissions.data[permissionIndex] = { ...state.permissions.data[permissionIndex] };
+          }
         }
       })
       .addCase(updatePermission.rejected, (state, action) => {
@@ -166,7 +175,10 @@ const permissionSlice = createSlice({
         state.error = null;
         
         // Remove permission from the list
-        state.permissions = state.permissions.filter(permission => permission.id !== action.payload);
+        if (state.permissions?.data) {
+          state.permissions.data = state.permissions.data.filter(permission => permission.id !== action.payload);
+          state.permissions.total = Math.max(0, state.permissions.total - 1);
+        }
       })
       .addCase(deletePermission.rejected, (state, action) => {
         state.isLoading = false;

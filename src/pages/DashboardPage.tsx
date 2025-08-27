@@ -13,10 +13,17 @@ const DashboardPage: React.FC = () => {
   const { permissions } = useAppSelector(state => state.permissions);
 
   useEffect(() => {
-    dispatch(fetchUsers({ page: 1, limit: 10 }));
-    dispatch(fetchRoles());
-    dispatch(fetchPermissions());
-  }, [dispatch]);
+    // Only fetch if data doesn't exist to prevent unnecessary API calls
+    if (!users) {
+      dispatch(fetchUsers({ page: 1, limit: 10 }));
+    }
+    if (!roles) {
+      dispatch(fetchRoles({ page: 1, limit: 100 }));
+    }
+    if (!permissions) {
+      dispatch(fetchPermissions({ page: 1, limit: 100 }));
+    }
+  }, [dispatch, users, roles, permissions]);
 
   const stats = [
     {
@@ -28,14 +35,14 @@ const DashboardPage: React.FC = () => {
     },
     {
       title: 'Total Roles',
-      value: roles?.length || 0,
+      value: roles?.data?.length || 0,
       icon: Shield,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Total Permissions',
-      value: permissions?.length || 0,
+      value: permissions?.data?.length || 0,
       icon: Key,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',

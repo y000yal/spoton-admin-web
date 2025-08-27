@@ -48,6 +48,7 @@ export interface UpdateUserRequest {
   };
   email?: string;
   username?: string;
+  status?: number;
 }
 
 // Role Types
