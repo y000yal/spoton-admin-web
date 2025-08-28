@@ -1,55 +1,41 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Users, Shield, Key, Calendar, TrendingUp, Activity } from 'lucide-react';
 import { Card, CardHeader, CardContent } from '../components/UI';
-import { useAppSelector, useAppDispatch } from '../store/hooks';
-import { fetchUsers } from '../store/slices/userSlice';
-import { fetchRoles } from '../store/slices/roleSlice';
-import { fetchPermissions } from '../store/slices/permissionSlice';
 
 const DashboardPage: React.FC = () => {
-  const dispatch = useAppDispatch();
-  const { users } = useAppSelector(state => state.users);
-  const { roles } = useAppSelector(state => state.roles);
-  const { permissions } = useAppSelector(state => state.permissions);
-
-  useEffect(() => {
-    // Only fetch if data doesn't exist to prevent unnecessary API calls
-    if (!users) {
-      dispatch(fetchUsers({ page: 1, limit: 10 }));
-    }
-    if (!roles) {
-      dispatch(fetchRoles({ page: 1, limit: 100 }));
-    }
-    if (!permissions) {
-      dispatch(fetchPermissions({ page: 1, limit: 100 }));
-    }
-  }, [dispatch, users, roles, permissions]);
+  // Mock data for dashboard
+  const mockStats = {
+    totalUsers: 156,
+    totalRoles: 8,
+    totalPermissions: 24,
+    activeUsers: 142
+  };
 
   const stats = [
     {
       title: 'Total Users',
-      value: users?.total || 0,
+      value: mockStats.totalUsers,
       icon: Users,
       color: 'text-blue-600',
       bgColor: 'bg-blue-100',
     },
     {
       title: 'Total Roles',
-      value: roles?.data?.length || 0,
+      value: mockStats.totalRoles,
       icon: Shield,
       color: 'text-green-600',
       bgColor: 'bg-green-100',
     },
     {
       title: 'Total Permissions',
-      value: permissions?.data?.length || 0,
+      value: mockStats.totalPermissions,
       icon: Key,
       color: 'text-purple-600',
       bgColor: 'bg-purple-100',
     },
     {
       title: 'Active Users',
-      value: users?.data?.filter(user => user.status === '1').length || 0,
+      value: mockStats.activeUsers,
       icon: Activity,
       color: 'text-orange-600',
       bgColor: 'bg-orange-100',

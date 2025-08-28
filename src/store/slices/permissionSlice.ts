@@ -28,9 +28,34 @@ export const fetchPermissions = createAsyncThunk(
     filter_value?: string;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
-  } = {}, { rejectWithValue }) => {
+    forceRefresh?: boolean;
+    [key: string]: any; // Allow dynamic filter keys like filter[name]
+  } = {}, { rejectWithValue, getState }) => {
+    const state = getState() as { permissions: PermissionState };
+    const existingPermissions = state.permissions.permissions;
+    
+    // Check if there are any filter parameters (including dynamic ones like filter[name])
+    const hasFilters = Object.keys(params).some(key => 
+      key.startsWith('filter[') || 
+      params.filter_field || 
+      params.filter_value || 
+      params.sort_by
+    );
+    
+    // Don't fetch if we already have permissions and no specific filters are applied and no force refresh is requested
+    if (existingPermissions && !hasFilters && !params.forceRefresh) {
+      console.log("🔄 fetchPermissions: Returning existing permissions (no filters, no force refresh)");
+      return existingPermissions;
+    }
+    
+    if (params.forceRefresh) {
+      console.log("🔄 fetchPermissions: Force refresh requested - fetching fresh data");
+    }
+    
     try {
+      console.log("🔄 fetchPermissions: Making API call to getPermissions with params:", params);
       const response = await permissionService.getPermissions(params);
+      console.log("🔄 fetchPermissions: API response received");
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -40,7 +65,15 @@ export const fetchPermissions = createAsyncThunk(
 
 export const fetchPermission = createAsyncThunk(
   'permissions/fetchPermission',
-  async (permissionId: number, { rejectWithValue }) => {
+  async (permissionId: number, { rejectWithValue, getState }) => {
+    const state = getState() as { permissions: PermissionState };
+    const existingPermission = state.permissions.currentPermission;
+    
+    // Don't fetch if we already have the same permission
+    if (existingPermission && existingPermission.id === permissionId) {
+      return existingPermission;
+    }
+    
     try {
       const response = await permissionService.getPermission(permissionId);
       return response;
@@ -55,6 +88,62 @@ export const createPermission = createAsyncThunk(
   async (permissionData: CreatePermissionRequest, { rejectWithValue }) => {
     try {
       const response = await permissionService.createPermission(permissionData);
+      return response;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+// Enhanced search permissions thunk with better filter handling
+export const searchPermissions = createAsyncThunk(
+  'permissions/searchPermissions',
+  async (params: {
+    limit?: number;
+    page?: number;
+    searchField?: string;
+    searchValue?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+    forceRefresh?: boolean;
+  } = {}, { rejectWithValue, getState }) => {
+    const state = getState() as { permissions: PermissionState };
+    const existingPermissions = state.permissions.permissions;
+    
+    // Check if we have existing permissions and if this is a search request
+    const isSearchRequest = params.searchValue && params.searchValue.trim();
+    
+    // Don't fetch if we already have permissions and this is not a search request and no force refresh
+    if (existingPermissions && !isSearchRequest && !params.forceRefresh) {
+      console.log("🔄 searchPermissions: Returning existing permissions (no search, no force refresh)");
+      return existingPermissions;
+    }
+    
+    // Build the API parameters
+    const apiParams: Record<string, any> = {
+      limit: params.limit || 10,
+      page: params.page || 1,
+    };
+    
+    // Add search filter if provided
+    if (isSearchRequest && params.searchField) {
+      apiParams[`filter[${params.searchField}]`] = params.searchValue.trim();
+    }
+    
+    // Add sorting if provided
+    if (params.sort_by) {
+      apiParams.sort_by = params.sort_by;
+      apiParams.sort_order = params.sort_order || 'asc';
+    }
+    
+    if (params.forceRefresh) {
+      console.log("🔄 searchPermissions: Force refresh requested - fetching fresh data");
+    }
+    
+    try {
+      console.log("🔄 searchPermissions: Making API call with params:", apiParams);
+      const response = await permissionService.getPermissions(apiParams);
+      console.log("🔄 searchPermissions: API response received");
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -95,6 +184,14 @@ const permissionSlice = createSlice({
     },
     setCurrentPermission: (state, action: PayloadAction<Permission | null>) => {
       state.currentPermission = action.payload;
+    },
+    clearPermissions: (state) => {
+      state.permissions = null;
+    },
+    resetPermissionsState: (state) => {
+      state.permissions = null;
+      state.currentPermission = null;
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -183,9 +280,29 @@ const permissionSlice = createSlice({
       .addCase(deletePermission.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+      })
+      
+      // Search permissions
+      .addCase(searchPermissions.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(searchPermissions.fulfilled, (state, action: PayloadAction<PaginatedResponse<Permission>>) => {
+        state.isLoading = false;
+        state.permissions = action.payload;
+        state.error = null;
+      })
+      .addCase(searchPermissions.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError, setCurrentPermission } = permissionSlice.actions;
+export const { 
+  clearError, 
+  setCurrentPermission, 
+  clearPermissions, 
+  resetPermissionsState 
+} = permissionSlice.actions;
 export default permissionSlice.reducer;

@@ -1,106 +1,121 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Edit, Trash2, Key, Shield, Lock } from 'lucide-react';
+import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  DataTable, Button, Modal, Card,
-  InputField, TextareaField, FormSection, FormActions, SelectField, ErrorMessage
-} from '../../components/UI';
-import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { fetchPermissions, createPermission, deletePermission, clearError } from '../../store/slices/permissionSlice';
-import { useToast } from '../../contexts/ToastContext';
-import type { Permission, CreatePermissionRequest } from '../../types';
-
+  Plus,
+  Edit,
+  Trash2,
+  Shield,
+  Key,
+} from "lucide-react";
+import { useAppDispatch, useAppSelector } from "../../store/hooks";
+import {
+  fetchPermissions,
+  searchPermissions,
+  deletePermission,
+  clearPermissions,
+  resetPermissionsState,
+} from "../../store/slices/permissionSlice";
+import type { Permission } from "../../types";
+import {
+  Button,
+  Modal,
+  Card,
+  DataTable,
+  FormActions,
+} from "../../components/UI";
 
 const PermissionsPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { permissions, isLoading, error } = useAppSelector((state) => state.permissions);
-  const { showSuccess, showError } = useToast();
+  const hasInitialFetch = useRef(false);
 
   // Modal states
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedPermission, setSelectedPermission] = useState<Permission | null>(null);
 
-  // Form states
-  const [createForm, setCreateForm] = useState<CreatePermissionRequest>({
-    name: '',
-    display_name: '',
-    description: '',
-    status: '1',
-  });
-
   // Search and pagination state
-  const [searchField, setSearchField] = useState('name');
-  const [searchValue, setSearchValue] = useState('');
+  const [searchField, setSearchField] = useState("name");
+  const [searchValue, setSearchValue] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(10);
-  const [searchLoading, setSearchLoading] = useState(false); // Local loading state for search operations
 
   // Search functions
   const handleSearch = (field: string, value: string) => {
     setSearchField(field);
     setSearchValue(value);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   const handleClearSearch = () => {
-    setSearchField('name');
-    setSearchValue('');
+    setSearchField("name");
+    setSearchValue("");
     setCurrentPage(1);
-    setSearchLoading(false); // Clear search loading state
     // Fetch fresh data from Redux store
-    dispatch(fetchPermissions({ page: 1, limit: pageSize }));
+    dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
   };
+
+  const handleRefresh = () => {
+    // Reset all search and pagination state
+    setSearchField("name");
+    setSearchValue("");
+    setCurrentPage(1);
+    
+    // Force a fresh fetch by clearing the existing permissions data first
+    // This ensures we get completely fresh data from the API
+    dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
+  };
+
+  // Initial load only
+  useEffect(() => {
+    let isMounted = true;
+    if (!hasInitialFetch.current && isMounted) {
+      hasInitialFetch.current = true;
+      console.log("🔄 Initial permissions fetch triggered");
+      dispatch(fetchPermissions({ page: 1, limit: 10 }));
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [dispatch]);
 
   // Handle search and pagination changes (only after initial load)
   useEffect(() => {
     // Skip the first render to prevent duplicate API calls
-    const isInitialRender = currentPage === 1 && !searchValue.trim();
-    if (isInitialRender) return;
-
-    const params: {
-      limit?: number;
-      page?: number;
-      filter_field?: string;
-      filter_value?: string;
-    } = {
-      limit: pageSize,
-      page: currentPage,
-    };
-
-    if (searchValue.trim()) {
-      // Only use Laravel-style format: filter[field_name] = value
-      (params as any)[`filter[${searchField}]`] = searchValue.trim();
+    if (!hasInitialFetch.current) {
+      return;
     }
 
-    dispatch(fetchPermissions(params));
-  }, [searchField, searchValue, currentPage, pageSize, dispatch]);
+    // Skip if this is the initial state (no actual changes from user interaction)
+    const isInitialState = currentPage === 1 && searchField === "name" && searchValue === "";
+    if (isInitialState) {
+      console.log("🔄 Skipping permissions useEffect - initial state detected");
+      return;
+    }
 
-  // Initial load
-  useEffect(() => {
-    dispatch(fetchPermissions({ page: 1, limit: pageSize }));
-  }, [dispatch, pageSize]);
+    console.log("🔄 Permissions search/pagination useEffect triggered:", { searchField, searchValue, currentPage });
 
-  // Show error toast when error changes
+    // Use the enhanced searchPermissions thunk for better search handling
+    if (searchValue.trim()) {
+      dispatch(searchPermissions({
+        page: currentPage,
+        limit: 10,
+        searchField,
+        searchValue,
+      }));
+    } else {
+      // No search value, just fetch with pagination
+      dispatch(fetchPermissions({
+        page: currentPage,
+        limit: 10,
+      }));
+    }
+  }, [searchField, searchValue, currentPage, dispatch]);
+
   useEffect(() => {
     if (error) {
-      showError(error, 'Permission Error');
-      dispatch(clearError());
+      console.error("Permission error:", error);
     }
-  }, [error, showError, dispatch]);
-
-  const handleCreatePermission = async () => {
-    try {
-      await dispatch(createPermission(createForm)).unwrap();
-      setIsCreateModalOpen(false);
-      resetCreateForm();
-      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
-      showSuccess('Permission created successfully!');
-    } catch (error) {
-      console.error('Failed to create permission:', error);
-    }
-  };
+  }, [error]);
 
   const handleEditPermission = (permission: Permission) => {
     navigate(`/permissions/${permission.id}/edit`);
@@ -108,28 +123,16 @@ const PermissionsPage: React.FC = () => {
 
   const handleDeletePermission = async () => {
     if (!selectedPermission) return;
-    
+
     try {
       await dispatch(deletePermission(selectedPermission.id)).unwrap();
       setIsDeleteModalOpen(false);
       setSelectedPermission(null);
-      dispatch(fetchPermissions({ page: 1, limit: pageSize }));
-      showSuccess('Permission deleted successfully!');
+      dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
     } catch (error) {
-      console.error('Failed to delete permission:', error);
+      console.error("Failed to delete permission:", error);
     }
   };
-
-  const resetCreateForm = () => {
-    setCreateForm({
-      name: '',
-      display_name: '',
-      description: '',
-      status: '1',
-    });
-  };
-
-
 
   const openDeleteModal = (permission: Permission) => {
     setSelectedPermission(permission);
@@ -138,56 +141,60 @@ const PermissionsPage: React.FC = () => {
 
   const tableColumns = [
     {
-      key: 'id',
-      header: 'ID',
-      width: 'w-16',
+      key: "id",
+      header: "ID",
+      width: "w-16",
+      searchable: false,
     },
     {
-      key: 'name',
-      header: 'Permission Name',
-      render: (value: string) => (
-        <div className="font-medium text-gray-900">{value}</div>
+      key: "name",
+      header: "Permission Name",
+      searchable: true,
+      render: (value: unknown) => (
+        <div className="font-medium text-gray-900">{String(value)}</div>
       ),
     },
     {
-      key: 'description',
-      header: 'Description',
-      render: (value: string) => (
-        <div className="text-gray-600">{value || '-'}</div>
+      key: "display_name",
+      header: "Display Name",
+      searchable: true,
+      render: (value: unknown) => (
+        <div className="text-gray-600">{value ? String(value) : "-"}</div>
       ),
     },
     {
-      key: 'status',
-      header: 'Status',
-      render: (value: string) => (
-        <span className={`px-2 py-1 text-xs rounded-full ${
-          value === '1' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-        }`}>
-          {value === '1' ? 'Active' : 'Inactive'}
+      key: "description",
+      header: "Description",
+      searchable: true,
+      render: (value: unknown) => (
+        <div className="text-gray-600">{value ? String(value) : "-"}</div>
+      ),
+    },
+    {
+      key: "created_at",
+      header: "Created At",
+      searchable: false,
+      render: (value: unknown) => (
+        <span className="text-gray-500">
+          {value ? new Date(String(value)).toLocaleDateString() : "-"}
         </span>
       ),
     },
     {
-      key: 'created_at',
-      header: 'Created At',
-      render: (value: string) => (
-        <span className="text-gray-500">{new Date(value).toLocaleDateString()}</span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      width: 'w-32',
+      key: "actions",
+      header: "Actions",
+      width: "w-48",
+      searchable: false,
       render: (_: unknown, permission: Permission) => (
         <div className="flex items-center space-x-2">
-                     <Button
-             variant="ghost"
-             size="sm"
-             onClick={() => handleEditPermission(permission)}
-             leftIcon={<Edit className="h-4 w-4" />}
-           >
-             Edit
-           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleEditPermission(permission)}
+            leftIcon={<Edit className="h-4 w-4" />}
+          >
+            Edit
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -202,32 +209,21 @@ const PermissionsPage: React.FC = () => {
     },
   ];
 
-
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Permissions</h1>
-          <p className="text-gray-600">Manage system permissions and access controls</p>
+          <p className="text-gray-600">Manage system permissions and access control</p>
         </div>
         <Button
-          onClick={() => setIsCreateModalOpen(true)}
+          onClick={() => navigate('/permissions/create')}
           leftIcon={<Plus className="h-5 w-5" />}
         >
           Add Permission
         </Button>
       </div>
-
-             {/* Error Display */}
-       {error && (
-         <ErrorMessage 
-           error={error} 
-           onClose={() => dispatch(clearError())}
-           className="mb-6"
-         />
-       )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -239,11 +235,12 @@ const PermissionsPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Total Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(permissions) ? permissions.length : (permissions?.data?.length || 0)}
+                {permissions?.data?.length || 0}
               </p>
             </div>
           </div>
         </Card>
+
         <Card>
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -252,68 +249,82 @@ const PermissionsPage: React.FC = () => {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Active Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(permissions) 
-                  ? permissions.filter(permission => permission.status === '1').length 
-                  : (permissions?.data?.filter(permission => permission.status === '1').length || 0)
-                }
+                {permissions?.data?.filter((permission) => permission.status === "1").length || 0}
               </p>
             </div>
           </div>
         </Card>
+
         <Card>
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <Lock className="h-8 w-8 text-primary-600" />
+              <Shield className="h-8 w-8 text-primary-600" />
             </div>
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Inactive Permissions</p>
               <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(permissions) 
-                  ? permissions.filter(permission => permission.status === '0').length 
-                  : (permissions?.data?.filter(permission => permission.status === '0').length || 0)
-                }
+                {permissions?.data?.filter((permission) => permission.status === "0").length || 0}
               </p>
             </div>
           </div>
         </Card>
       </div>
 
-  
-
       {/* Permissions Table */}
       <DataTable
-        data={permissions || { data: [], current_page: 1, total: 0, from: 0, to: 0, last_page: 1, prev_page_url: null, next_page_url: null, first_page_url: '', last_page_url: '', path: '', per_page: 10, links: [] }}
+        data={
+          permissions || {
+            data: [],
+            current_page: 1,
+            total: 0,
+            from: 0,
+            to: 0,
+            last_page: 1,
+            prev_page_url: null,
+            next_page_url: null,
+            first_page_url: "",
+            last_page_url: "",
+            path: "",
+            per_page: 10,
+            links: [],
+          }
+        }
         columns={tableColumns}
-        isLoading={isLoading || searchLoading}
+        isLoading={isLoading}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
+        onRefresh={handleRefresh}
         onPageChange={(page) => {
           setCurrentPage(page);
-          const params: any = { 
-            page, 
-            limit: pageSize
-          };
-          
           if (searchValue.trim()) {
-            // Only use Laravel-style format: filter[field_name] = value
-            params[`filter[${searchField}]`] = searchValue.trim();
+            dispatch(searchPermissions({
+              page,
+              limit: 10,
+              searchField,
+              searchValue,
+            }));
+          } else {
+            dispatch(fetchPermissions({
+              page,
+              limit: 10,
+            }));
           }
-          
-          dispatch(fetchPermissions(params));
         }}
         onPageSizeChange={(newPageSize) => {
-          setCurrentPage(1); // Reset to first page when changing page size
-          const params: any = { 
-            page: 1, 
-            limit: newPageSize
-          };
-          
+          setCurrentPage(1);
           if (searchValue.trim()) {
-            // Only use Laravel-style format: filter[field_name] = value
-            params[`filter[${searchField}]`] = searchValue.trim();
+            dispatch(searchPermissions({
+              page: 1,
+              limit: newPageSize,
+              searchField,
+              searchValue,
+            }));
+          } else {
+            dispatch(fetchPermissions({
+              page: 1,
+              limit: newPageSize,
+            }));
           }
-          
-          dispatch(fetchPermissions(params));
         }}
         searchField={searchField}
         searchValue={searchValue}
@@ -322,61 +333,6 @@ const PermissionsPage: React.FC = () => {
         showPagination={true}
       />
 
-      {/* Create Permission Modal */}
-      <Modal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        title="Create New Permission"
-        size="lg"
-      >
-        <FormSection>
-          <InputField 
-            label="Permission Name" 
-            name="name" 
-            value={createForm.name} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateForm(prev => ({ ...prev, name: e.target.value }))} 
-            placeholder="e.g., user.create, user.read" 
-            required 
-          />
-          <InputField 
-            label="Display Name" 
-            name="display_name" 
-            value={createForm.display_name} 
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCreateForm(prev => ({ ...prev, display_name: e.target.value }))} 
-            placeholder="e.g., Create User, Read User" 
-            required 
-          />
-          <TextareaField 
-            label="Description" 
-            name="description" 
-            value={createForm.description} 
-            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCreateForm(prev => ({ ...prev, description: e.target.value }))} 
-            placeholder="Describe what this permission allows" 
-            rows={3} 
-          />
-          <SelectField
-            label="Status"
-            name="status"
-            value={createForm.status}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setCreateForm(prev => ({ ...prev, status: e.target.value }))}
-            options={[
-              { value: '1', label: 'Active' },
-              { value: '0', label: 'Inactive' }
-            ]}
-            required
-          />
-        </FormSection>
-        <FormActions>
-          <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleCreatePermission}>
-            Create Permission
-          </Button>
-        </FormActions>
-      </Modal>
-
-
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={isDeleteModalOpen}
@@ -384,17 +340,32 @@ const PermissionsPage: React.FC = () => {
         title="Delete Permission"
         size="sm"
       >
-        <div className="text-center">
-          <p className="text-gray-600 mb-6">
-            Are you sure you want to delete permission <strong>{selectedPermission?.name}</strong>? 
-            This action cannot be undone and may affect roles that use this permission.
+        <div className="text-center py-4">
+          <p className="text-gray-600 mb-2 leading-relaxed">
+            Are you sure you want to delete the permission{" "}
+            <span className="font-semibold text-gray-900">
+              {selectedPermission?.name}
+            </span>
+            ?
+            <br />
+            <span className="text-sm text-gray-500">
+              This action cannot be undone.
+            </span>
           </p>
         </div>
-        <FormActions>
-          <Button variant="secondary" onClick={() => setIsDeleteModalOpen(false)}>
+        <FormActions className="pt-4">
+          <Button
+            variant="secondary"
+            onClick={() => setIsDeleteModalOpen(false)}
+            className="px-6 py-2"
+          >
             Cancel
           </Button>
-          <Button variant="danger" onClick={handleDeletePermission}>
+          <Button
+            variant="danger"
+            onClick={handleDeletePermission}
+            className="px-6 py-2"
+          >
             Delete Permission
           </Button>
         </FormActions>

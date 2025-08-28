@@ -5,6 +5,12 @@
 @layer base {
   html {
     font-family: 'Inter', system-ui, sans-serif;
+    font-size: 16px; /* Base font size increased from 14px to 15px */
+  }
+  
+  body {
+    font-size: 0.9375rem; /* 15px - matches the new base size */
+    line-height: 1.5rem; /* Adjusted line height for better readability */
   }
   
   :root {

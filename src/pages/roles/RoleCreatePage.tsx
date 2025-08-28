@@ -1,22 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { updateRole, fetchRole, fetchRolePermissions, assignRolePermissions } from '../../store/slices/roleSlice';
+import { createRole } from '../../store/slices/roleSlice';
 import { fetchPermissions } from '../../store/slices/permissionSlice';
+import { roleService } from '../../services/api';
 
 import { Card, Button, InputField, TextareaField, FormSection, FormActions } from '../../components/UI';
 import { ArrowLeft, Save, X, Key, RefreshCw } from 'lucide-react';
-import type { UpdateRoleRequest } from '../../types';
+import type { CreateRoleRequest } from '../../types';
 
-const RoleEditPage: React.FC = () => {
-  const { roleId } = useParams<{ roleId: string }>();
+const RoleCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   
-  const { currentRole, isLoading } = useAppSelector(state => state.roles);
   const { permissions } = useAppSelector(state => state.permissions);
 
-  const [formData, setFormData] = useState<UpdateRoleRequest>({
+  const [formData, setFormData] = useState<CreateRoleRequest>({
     name: '',
     display_name: '',
     description: '',
@@ -32,57 +31,13 @@ const RoleEditPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load role data on mount and when roleId changes
+  // Load permissions if not already loaded
   useEffect(() => {
-    if (roleId) {
-      dispatch(fetchRole(parseInt(roleId)));
+    if (!permissionsLoaded || !permissions?.data || permissions.data.length === 0) {
+      dispatch(fetchPermissions({ page: 1, limit: 100 }));
+      setPermissionsLoaded(true);
     }
-  }, [roleId, dispatch]);
-
-        // Load permissions if not already loaded
-      useEffect(() => {
-        if (!permissionsLoaded || !permissions?.data || permissions.data.length === 0) {
-          dispatch(fetchPermissions({ page: 1, limit: 100, forceRefresh: true }));
-          setPermissionsLoaded(true);
-        }
-      }, [permissionsLoaded, permissions, dispatch]);
-
-  // Update form data when role is loaded
-  useEffect(() => {
-    if (currentRole) {
-      setFormData({
-        name: currentRole.name || '',
-        display_name: currentRole.display_name || '',
-        description: currentRole.description || '',
-        status: currentRole.status || '1'
-      });
-      
-      // Load role permissions
-      loadRolePermissions();
-    }
-  }, [currentRole]);
-
-  // Load permissions for the role
-  const loadRolePermissions = async () => {
-    if (!currentRole) return;
-    
-    setPermissionsLoading(true);
-    try {
-      // Fetch role-specific permissions using Redux thunk
-      const result = await dispatch(fetchRolePermissions(currentRole.id)).unwrap();
-      
-      // Set selected permissions based on role permissions
-      const selectedSlugs = (result.permissions.permissions || []).map((rp: Record<string, unknown>) => rp.slug as string);
-      const selectedIds = (permissions?.data || [])
-        .filter((p) => selectedSlugs.includes(p.slug as string))
-        .map((p) => p.id as number);
-      setSelectedPermissions(selectedIds);
-    } catch (error) {
-      console.error('Failed to load role permissions:', error);
-    } finally {
-      setPermissionsLoading(false);
-    }
-  };
+  }, [permissionsLoaded, permissions, dispatch]);
 
   // Handle permission toggle
   const handlePermissionToggle = (permissionId: number) => {
@@ -93,13 +48,11 @@ const RoleEditPage: React.FC = () => {
     );
   };
 
-  // Save permissions
-  const handleSavePermissions = async () => {
-    if (!currentRole) return;
-    
+  // Save permissions (will be called after role creation)
+  const handleSavePermissions = async (roleId: number) => {
     setSavingPermissions(true);
     try {
-      await dispatch(assignRolePermissions({ roleId: currentRole.id, permissionIds: selectedPermissions })).unwrap();
+      await roleService.assignPermissions(roleId, selectedPermissions);
       console.log('Permissions saved successfully');
     } catch (error) {
       console.error('Failed to save permissions:', error);
@@ -117,16 +70,23 @@ const RoleEditPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!roleId) return;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
-      await dispatch(updateRole({ roleId: parseInt(roleId), roleData: formData })).unwrap();
-      navigate('/roles');
+      // Create the role first
+      const newRole = await dispatch(createRole(formData)).unwrap();
+      
+      // If permissions are selected, save them for the new role
+      if (selectedPermissions.length > 0) {
+        await handleSavePermissions(newRole.id);
+      }
+      
+      // Navigate to edit page for the newly created role
+      navigate(`/roles/${newRole.id}/edit`);
     } catch (err: any) {
-      setError(err.message || 'Failed to update role');
+      setError(err.message || 'Failed to create role');
     } finally {
       setIsSubmitting(false);
     }
@@ -135,33 +95,6 @@ const RoleEditPage: React.FC = () => {
   const handleCancel = () => {
     navigate('/roles');
   };
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading role information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentRole) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Role Not Found</h2>
-          <p className="text-gray-600 mb-6">The role you're looking for doesn't exist.</p>
-          <Button onClick={handleCancel} variant="secondary">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Go Back
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -177,9 +110,9 @@ const RoleEditPage: React.FC = () => {
             Back
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Role</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Create New Role</h1>
             <p className="text-gray-600">
-              Update information for role "{currentRole.display_name || currentRole.name}"
+              Add a new role to the system and assign permissions
             </p>
           </div>
         </div>
@@ -264,7 +197,7 @@ const RoleEditPage: React.FC = () => {
                   disabled={isSubmitting}
                   leftIcon={isSubmitting ? undefined : <Save className="h-4 w-4" />}
                 >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  {isSubmitting ? 'Creating...' : 'Create Role'}
                 </Button>
               </div>
             </FormActions>
@@ -278,7 +211,7 @@ const RoleEditPage: React.FC = () => {
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <p className="text-gray-600">
-                    Select the permissions that should be assigned to this role.
+                    Select the permissions that should be assigned to this new role.
                   </p>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -299,15 +232,6 @@ const RoleEditPage: React.FC = () => {
                       className="text-gray-500 hover:text-gray-700"
                     >
                       Remove All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={loadRolePermissions}
-                      leftIcon={<RefreshCw className="h-4 w-4" />}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      Refresh
                     </Button>
                   </div>
                 </div>
@@ -348,16 +272,10 @@ const RoleEditPage: React.FC = () => {
             </FormSection>
 
             <div className="pt-4 border-t border-gray-200">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleSavePermissions}
-                disabled={savingPermissions}
-                leftIcon={<Key className="h-4 w-4" />}
-                className="w-full"
-              >
-                {savingPermissions ? 'Saving Permissions...' : 'Save Permissions'}
-              </Button>
+              <div className="text-sm text-gray-600 text-center">
+                <p>Permissions will be automatically assigned when the role is created.</p>
+                <p className="mt-1">After creation, you'll be redirected to edit the role for further customization.</p>
+              </div>
             </div>
           </div>
         </Card>
@@ -366,4 +284,4 @@ const RoleEditPage: React.FC = () => {
   );
 };
 
-export default RoleEditPage;
+export default RoleCreatePage;

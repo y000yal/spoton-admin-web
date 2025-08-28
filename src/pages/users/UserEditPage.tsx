@@ -5,8 +5,8 @@ import { updateUser, fetchUser } from '../../store/slices/userSlice';
 import { fetchRoles } from '../../store/slices/roleSlice';
 
 import { Card, Button, InputField, SelectField, FormSection, FormActions } from '../../components/UI';
-import { ArrowLeft, User as UserIcon, Save, X } from 'lucide-react';
-import type { User, UpdateUserRequest } from '../../types';
+import { ArrowLeft, Save, X } from 'lucide-react';
+import type { UpdateUserRequest } from '../../types';
 
 const UserEditPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
@@ -32,9 +32,15 @@ const UserEditPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userId) {
+    let isMounted = true;
+    
+    if (userId && isMounted) {
       dispatch(fetchUser(parseInt(userId)));
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [userId, dispatch]);
 
   useEffect(() => {
@@ -54,7 +60,8 @@ const UserEditPage: React.FC = () => {
   }, [currentUser]);
 
   useEffect(() => {
-    if (!roles) {
+    // Only fetch roles if we don't have them yet
+    if (!roles || roles.data?.length === 0) {
       dispatch(fetchRoles({ page: 1, limit: 100 }));
     }
   }, [roles, dispatch]);
@@ -65,7 +72,7 @@ const UserEditPage: React.FC = () => {
       setFormData(prev => ({
         ...prev,
         [parent]: {
-          ...(prev[parent as keyof UpdateUserRequest] as any),
+          ...(prev[parent as keyof UpdateUserRequest] as Record<string, unknown>),
           [child]: value
         }
       }));
@@ -100,8 +107,11 @@ const UserEditPage: React.FC = () => {
 
       await dispatch(updateUser({ userId: parseInt(userId), userData: apiData })).unwrap();
       navigate(`/users/${userId}`);
-    } catch (err: any) {
-      setError(err.message || 'Failed to update user');
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'message' in err 
+        ? String(err.message) 
+        : 'Failed to update user';
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }

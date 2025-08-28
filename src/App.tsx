@@ -8,7 +8,7 @@ import { useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from './pages/users';
-import { RolesPage, RoleEditPage } from './pages/roles';
+import { RolesPage, RoleEditPage, RoleCreatePage } from './pages/roles';
 import { PermissionsPage, PermissionEditPage } from './pages/permissions';
 import Layout from './components/Layout/Layout';
 
@@ -60,6 +60,7 @@ const App: React.FC = () => {
                   
                   {/* Role Routes */}
                   <Route path="roles" element={<RolesPage />} />
+                  <Route path="roles/create" element={<RoleCreatePage />} />
                   <Route path="roles/:roleId/edit" element={<RoleEditPage />} />
                   
                   {/* Permission Routes */}

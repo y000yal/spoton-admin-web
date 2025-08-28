@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import type { PaginatedResponse } from '../../types';
 
@@ -20,6 +20,7 @@ interface DataTableProps<T> {
   onSort?: (field: string, direction: 'asc' | 'desc') => void;
   onSearch?: (filterField: string, filterValue: string) => void;
   onClearSearch?: () => void;
+  onRefresh?: () => void;
   searchPlaceholder?: string;
   showSearch?: boolean;
   showPagination?: boolean;
@@ -41,6 +42,7 @@ function DataTable<T extends Record<string, unknown>>({
   onSort,
   onSearch,
   onClearSearch,
+  onRefresh,
   searchPlaceholder = 'Search...',
   showSearch = true,
   showPagination = true,
@@ -48,17 +50,30 @@ function DataTable<T extends Record<string, unknown>>({
   searchField = '',
   searchValue = '',
 }: DataTableProps<T>) {
-  const [sortField, setSortField] = useState<string>('');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [localSearchField, setLocalSearchField] = useState(searchField);
-  const [localSearchValue, setLocalSearchValue] = useState(searchValue);
-
   const isPaginated = 'current_page' in data;
   const paginatedData = isPaginated ? data : null;
   const tableData = isPaginated ? data.data : data;
 
   // Get searchable columns (default to all if not specified)
   const searchableColumns = columns.filter(col => col.searchable !== false);
+
+  const [sortField, setSortField] = useState<string>('');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [localSearchField, setLocalSearchField] = useState(() => {
+    if (searchField) return searchField;
+    return searchableColumns[0]?.key ? String(searchableColumns[0].key) : '';
+  });
+  const [localSearchValue, setLocalSearchValue] = useState(searchValue ?? '');
+
+  // Sync local state with parent state only when parent explicitly changes
+  useEffect(() => {
+    if (searchField && searchField !== localSearchField) {
+      setLocalSearchField(searchField);
+    }
+    if (searchValue !== undefined && searchValue !== localSearchValue) {
+      setLocalSearchValue(searchValue);
+    }
+  }, [searchField, searchValue]);
 
   const handleSort = (field: string) => {
     if (!onSort) return;
@@ -70,7 +85,7 @@ function DataTable<T extends Record<string, unknown>>({
   };
 
   const handleSearch = () => {
-    if (localSearchValue.trim() && onSearch) {
+    if (onSearch) {
       onSearch(localSearchField, localSearchValue.trim());
     }
   };
@@ -78,6 +93,24 @@ function DataTable<T extends Record<string, unknown>>({
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleSearch();
+    }
+  };
+
+  const handleClearSearch = () => {
+    setLocalSearchValue('');
+    setLocalSearchField(searchableColumns[0]?.key ? String(searchableColumns[0].key) : '');
+    if (onClearSearch) {
+      onClearSearch();
+    }
+  };
+
+  const handleRefresh = () => {
+    setLocalSearchValue('');
+    setLocalSearchField(searchableColumns[0]?.key ? String(searchableColumns[0].key) : '');
+    if (onRefresh) {
+      onRefresh();
+    } else if (onClearSearch) {
+      onClearSearch();
     }
   };
 
@@ -167,39 +200,29 @@ function DataTable<T extends Record<string, unknown>>({
                 onChange={(e) => setLocalSearchValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={searchPlaceholder}
-                className="block w-full pl-10 pr-20 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
+                className="block w-full pl-10 pr-24 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
               />
+                             {/* Search Button - Always visible */}
+               <button
+                 onClick={handleSearch}
+                 className="absolute inset-y-0 right-8 pr-3 flex items-center text-primary-600 hover:text-primary-700 text-sm font-medium hover:text-primary-800"
+               >
+                 Search
+               </button>
+              {/* X Button - Clear input */}
               {localSearchValue && (
-                <>
-                  {/* Search Button - Inside the input field */}
-                  <button
-                    onClick={handleSearch}
-                    className="absolute inset-y-0 right-8 pr-3 flex items-center text-primary-600 hover:text-primary-700 text-sm font-medium"
-                  >
-                    Search
-                  </button>
-                  {/* X Button - Clear input and fetch default values */}
-                  <button
-                    onClick={() => {
-                      setLocalSearchValue('');
-                     
-                    }}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </>
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               )}
             </div>
 
             {/* Refresh Button */}
             <button
-              onClick={() => {
-                setLocalSearchValue('');
-                if (onClearSearch) {
-                  onClearSearch();
-                }
-              }}
+              onClick={handleRefresh}
               className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:shadow-md"
               title="Refresh data"
             >

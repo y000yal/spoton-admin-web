@@ -54,7 +54,15 @@ export const fetchUsers = createAsyncThunk(
 
 export const fetchUser = createAsyncThunk(
   'users/fetchUser',
-  async (userId: number, { rejectWithValue }) => {
+  async (userId: number, { rejectWithValue, getState }) => {
+    const state = getState() as { users: UserState };
+    const currentUser = state.users.currentUser;
+    
+    // Don't fetch if we already have the user and it's the same ID
+    if (currentUser && currentUser.id === userId) {
+      return currentUser;
+    }
+    
     try {
       const response = await userService.getUser(userId);
       return response;
@@ -168,7 +176,7 @@ const userSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(updateUser.fulfilled, (state, action: PayloadAction<{ userId: number; response: any }>) => {
+      .addCase(updateUser.fulfilled, (state, action: PayloadAction<{ userId: number; response: User }>) => {
         state.isLoading = false;
         state.error = null;
         

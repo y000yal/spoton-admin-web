@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { fetchUsers, deleteUser } from '../../store/slices/userSlice';
-import { fetchRoles } from '../../store/slices/roleSlice';
 
 import { Card, Button, DataTable } from '../../components/UI';
 import { Plus, Users, Eye, Edit, Trash2 } from 'lucide-react';
@@ -18,10 +17,19 @@ const UsersPage: React.FC = () => {
   const [searchField, setSearchField] = useState('username');
   const [searchValue, setSearchValue] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const hasInitialFetch = useRef(false);
 
   useEffect(() => {
-    dispatch(fetchUsers({ page: 1, limit: 10 }));
-    dispatch(fetchRoles({ page: 1, limit: 100 }));
+    let isMounted = true;
+    
+    if (!hasInitialFetch.current && isMounted) {
+      hasInitialFetch.current = true;
+      dispatch(fetchUsers({ page: 1, limit: 10 }));
+    }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [dispatch]);
 
   const handleSearch = (field: string, value: string) => {
