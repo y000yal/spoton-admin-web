@@ -42,10 +42,18 @@ export const fetchPermissions = createAsyncThunk(
       params.sort_by
     );
     
-    // Don't fetch if we already have permissions and no specific filters are applied and no force refresh is requested
-    if (existingPermissions && !hasFilters && !params.forceRefresh) {
-      console.log("🔄 fetchPermissions: Returning existing permissions (no filters, no force refresh)");
+    // Check if page size has changed (this should trigger a new fetch)
+    const hasPageSizeChange = existingPermissions && 
+      existingPermissions.per_page !== params.limit;
+    
+    // Don't fetch if we already have permissions and no specific filters are applied and no force refresh is requested and no page size change
+    if (existingPermissions && !hasFilters && !params.forceRefresh && !hasPageSizeChange) {
+      console.log("🔄 fetchPermissions: Returning existing permissions (no filters, no force refresh, no page size change)");
       return existingPermissions;
+    }
+    
+    if (hasPageSizeChange) {
+      console.log("🔄 fetchPermissions: Page size changed - fetching fresh data");
     }
     
     if (params.forceRefresh) {
@@ -113,10 +121,18 @@ export const searchPermissions = createAsyncThunk(
     // Check if we have existing permissions and if this is a search request
     const isSearchRequest = params.searchValue && params.searchValue.trim();
     
-    // Don't fetch if we already have permissions and this is not a search request and no force refresh
-    if (existingPermissions && !isSearchRequest && !params.forceRefresh) {
-      console.log("🔄 searchPermissions: Returning existing permissions (no search, no force refresh)");
+    // Check if page size has changed (this should trigger a new fetch)
+    const hasPageSizeChange = existingPermissions && 
+      existingPermissions.per_page !== params.limit;
+    
+    // Don't fetch if we already have permissions and this is not a search request and no force refresh and no page size change
+    if (existingPermissions && !isSearchRequest && !params.forceRefresh && !hasPageSizeChange) {
+      console.log("🔄 searchPermissions: Returning existing permissions (no search, no force refresh, no page size change)");
       return existingPermissions;
+    }
+    
+    if (hasPageSizeChange) {
+      console.log("🔄 searchPermissions: Page size changed - fetching fresh data");
     }
     
     // Build the API parameters

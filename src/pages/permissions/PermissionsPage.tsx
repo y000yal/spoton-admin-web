@@ -38,6 +38,7 @@ const PermissionsPage: React.FC = () => {
   const [searchField, setSearchField] = useState("name");
   const [searchValue, setSearchValue] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(10);
 
   // Search functions
   const handleSearch = (field: string, value: string) => {
@@ -51,7 +52,7 @@ const PermissionsPage: React.FC = () => {
     setSearchValue("");
     setCurrentPage(1);
     // Fetch fresh data from Redux store
-    dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
+    dispatch(fetchPermissions({ page: 1, limit: currentPageSize, forceRefresh: true }));
   };
 
   const handleRefresh = () => {
@@ -62,7 +63,7 @@ const PermissionsPage: React.FC = () => {
     
     // Force a fresh fetch by clearing the existing permissions data first
     // This ensures we get completely fresh data from the API
-    dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
+    dispatch(fetchPermissions({ page: 1, limit: currentPageSize, forceRefresh: true }));
   };
 
   // Initial load only
@@ -71,12 +72,12 @@ const PermissionsPage: React.FC = () => {
     if (!hasInitialFetch.current && isMounted) {
       hasInitialFetch.current = true;
       console.log("🔄 Initial permissions fetch triggered");
-      dispatch(fetchPermissions({ page: 1, limit: 10 }));
+      dispatch(fetchPermissions({ page: 1, limit: currentPageSize }));
     }
     return () => {
       isMounted = false;
     };
-  }, [dispatch]);
+  }, [dispatch, currentPageSize]);
 
   // Handle search and pagination changes (only after initial load)
   useEffect(() => {
@@ -98,7 +99,7 @@ const PermissionsPage: React.FC = () => {
     if (searchValue.trim()) {
       dispatch(searchPermissions({
         page: currentPage,
-        limit: 10,
+        limit: currentPageSize,
         searchField,
         searchValue,
       }));
@@ -106,10 +107,10 @@ const PermissionsPage: React.FC = () => {
       // No search value, just fetch with pagination
       dispatch(fetchPermissions({
         page: currentPage,
-        limit: 10,
+        limit: currentPageSize,
       }));
     }
-  }, [searchField, searchValue, currentPage, dispatch]);
+  }, [searchField, searchValue, currentPage, currentPageSize, dispatch]);
 
   useEffect(() => {
     if (error) {
@@ -128,7 +129,7 @@ const PermissionsPage: React.FC = () => {
       await dispatch(deletePermission(selectedPermission.id)).unwrap();
       setIsDeleteModalOpen(false);
       setSelectedPermission(null);
-      dispatch(fetchPermissions({ page: 1, limit: 10, forceRefresh: true }));
+      dispatch(fetchPermissions({ page: 1, limit: currentPageSize, forceRefresh: true }));
     } catch (error) {
       console.error("Failed to delete permission:", error);
     }
@@ -299,18 +300,19 @@ const PermissionsPage: React.FC = () => {
           if (searchValue.trim()) {
             dispatch(searchPermissions({
               page,
-              limit: 10,
+              limit: currentPageSize,
               searchField,
               searchValue,
             }));
           } else {
             dispatch(fetchPermissions({
               page,
-              limit: 10,
+              limit: currentPageSize,
             }));
           }
         }}
         onPageSizeChange={(newPageSize) => {
+          setCurrentPageSize(newPageSize);
           setCurrentPage(1);
           if (searchValue.trim()) {
             dispatch(searchPermissions({

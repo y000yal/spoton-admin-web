@@ -42,9 +42,42 @@ export const fetchUsers = createAsyncThunk(
     filter_value?: string;
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
-  }, { rejectWithValue }) => {
+    forceRefresh?: boolean;
+    [key: string]: any; // Allow dynamic filter keys like filter[name]
+  }, { rejectWithValue, getState }) => {
+    const state = getState() as { users: UserState };
+    const existingUsers = state.users.users;
+    
+    // Check if there are any filter parameters (including dynamic ones like filter[name])
+    const hasFilters = Object.keys(params).some(key => 
+      key.startsWith('filter[') || 
+      params.filter_field || 
+      params.filter_value || 
+      params.sort_by
+    );
+    
+    // Check if page size has changed (this should trigger a new fetch)
+    const hasPageSizeChange = existingUsers && 
+      existingUsers.per_page !== params.limit;
+    
+    // Don't fetch if we already have users and no specific filters are applied and no force refresh is requested and no page size change
+    if (existingUsers && !hasFilters && !params.forceRefresh && !hasPageSizeChange) {
+      console.log("🔄 fetchUsers: Returning existing users (no filters, no force refresh, no page size change)");
+      return existingUsers;
+    }
+    
+    if (hasPageSizeChange) {
+      console.log("🔄 fetchUsers: Page size changed - fetching fresh data");
+    }
+    
+    if (params.forceRefresh) {
+      console.log("🔄 fetchUsers: Force refresh requested - fetching fresh data");
+    }
+    
     try {
+      console.log("🔄 fetchUsers: Making API call to getUsers with params:", params);
       const response = await userService.getUsers(params);
+      console.log("🔄 fetchUsers: API response received");
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -65,6 +98,70 @@ export const fetchUser = createAsyncThunk(
     
     try {
       const response = await userService.getUser(userId);
+      return response;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+// Enhanced search users thunk with better filter handling
+export const searchUsers = createAsyncThunk(
+  'users/searchUsers',
+  async (params: {
+    page: number;
+    limit: number;
+    searchField?: string;
+    searchValue?: string;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+    forceRefresh?: boolean;
+  }, { rejectWithValue, getState }) => {
+    const state = getState() as { users: UserState };
+    const existingUsers = state.users.users;
+    
+    // Check if we have existing users and if this is a search request
+    const isSearchRequest = params.searchValue && params.searchValue.trim();
+    
+    // Check if page size has changed (this should trigger a new fetch)
+    const hasPageSizeChange = existingUsers && 
+      existingUsers.per_page !== params.limit;
+    
+    // Don't fetch if we already have users and this is not a search request and no force refresh and no page size change
+    if (existingUsers && !isSearchRequest && !params.forceRefresh && !hasPageSizeChange) {
+      console.log("🔄 searchUsers: Returning existing users (no search, no force refresh, no page size change)");
+      return existingUsers;
+    }
+    
+    // Build the API parameters
+    const apiParams: Record<string, any> = {
+      page: params.page,
+      limit: params.limit,
+    };
+    
+    // Add search filter if provided
+    if (isSearchRequest && params.searchField) {
+      apiParams[`filter[${params.searchField}]`] = params.searchValue.trim();
+    }
+    
+    // Add sorting if provided
+    if (params.sort_by) {
+      apiParams.sort_by = params.sort_by;
+      apiParams.sort_order = params.sort_order || 'asc';
+    }
+    
+    if (hasPageSizeChange) {
+      console.log("🔄 searchUsers: Page size changed - fetching fresh data");
+    }
+    
+    if (params.forceRefresh) {
+      console.log("🔄 searchUsers: Force refresh requested - fetching fresh data");
+    }
+    
+    try {
+      console.log("🔄 searchUsers: Making API call with params:", apiParams);
+      const response = await userService.getUsers(apiParams);
+      console.log("🔄 searchUsers: API response received");
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -123,6 +220,14 @@ const userSlice = createSlice({
     },
     setCurrentUser: (state, action: PayloadAction<User | null>) => {
       state.currentUser = action.payload;
+    },
+    clearUsers: (state) => {
+      state.users = null;
+    },
+    resetUsersState: (state) => {
+      state.users = null;
+      state.currentUser = null;
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -212,9 +317,31 @@ const userSlice = createSlice({
       .addCase(deleteUser.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
+      })
+      
+      // Search users
+      .addCase(searchUsers.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(searchUsers.fulfilled, (state, action: PayloadAction<PaginatedResponse<User>>) => {
+        state.isLoading = false;
+        state.users = action.payload;
+        state.error = null;
+      })
+      .addCase(searchUsers.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { clearError, setFilters, resetFilters, setCurrentUser } = userSlice.actions;
+export const { 
+  clearError, 
+  setFilters, 
+  resetFilters, 
+  setCurrentUser, 
+  clearUsers, 
+  resetUsersState 
+} = userSlice.actions;
 export default userSlice.reducer;

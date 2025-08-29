@@ -37,6 +37,7 @@ const RolesPage: React.FC = () => {
   const [searchField, setSearchField] = useState("name");
   const [searchValue, setSearchValue] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(10);
 
 
 
@@ -321,7 +322,7 @@ const RolesPage: React.FC = () => {
           setCurrentPage(page);
           const params: any = {
             page,
-            limit: 10,
+            limit: currentPageSize,
           };
 
           if (searchValue.trim()) {
@@ -332,6 +333,7 @@ const RolesPage: React.FC = () => {
           dispatch(fetchRoles(params));
         }}
         onPageSizeChange={(newPageSize) => {
+          setCurrentPageSize(newPageSize);
           setCurrentPage(1); // Reset to first page when changing page size
           const params: any = {
             page: 1,

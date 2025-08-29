@@ -44,10 +44,18 @@ export const fetchRoles = createAsyncThunk(
       params.sort_by
     );
     
-    // Don't fetch if we already have roles and no specific filters are applied and no force refresh is requested
-    if (existingRoles && !hasFilters && !params.forceRefresh) {
-      console.log("🔄 fetchRoles: Returning existing roles (no filters, no force refresh)");
+    // Check if page size has changed (this should trigger a new fetch)
+    const hasPageSizeChange = existingRoles && 
+      existingRoles.per_page !== params.limit;
+    
+    // Don't fetch if we already have roles and no specific filters are applied and no force refresh is requested and no page size change
+    if (existingRoles && !hasFilters && !params.forceRefresh && !hasPageSizeChange) {
+      console.log("🔄 fetchRoles: Returning existing roles (no filters, no force refresh, no page size change)");
       return existingRoles;
+    }
+    
+    if (hasPageSizeChange) {
+      console.log("🔄 fetchRoles: Page size changed - fetching fresh data");
     }
     
     if (params.forceRefresh) {
