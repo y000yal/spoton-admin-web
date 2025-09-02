@@ -1,400 +1,293 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Plus,
-  Edit,
-  Trash2,
-  Shield,
-  Users,
-} from "lucide-react";
+import { Plus, Edit, Trash2, Shield } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  fetchRoles,
-  deleteRole,
-} from "../../store/slices/roleSlice";
+import { fetchRoles, deleteRole } from "../../store/slices/roleSlice";
 import type { Role } from "../../types";
-import {
-  Button,
-  Modal,
-  Card,
-  DataTable,
-  FormActions,
-} from "../../components/UI";
+import { Button, DataTable, PermissionGate } from "../../components/UI";
+import { PERMISSIONS } from "../../utils/permissions";
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { roles, isLoading, error } = useAppSelector((state) => state.roles);
-  const hasInitialFetch = useRef(false);
+  const { roles, isLoading } = useAppSelector((state) => state.roles);
 
-  // Modal states
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-
-
-
-  // Search and pagination state
+  // Table state management
   const [searchField, setSearchField] = useState("name");
   const [searchValue, setSearchValue] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [currentPageSize, setCurrentPageSize] = useState(10);
+  const [sortField, setSortField] = useState("created_at");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [isLocalLoading, setIsLocalLoading] = useState(false);
 
-
-
-
-
-  // Search functions
-  const handleSearch = (field: string, value: string) => {
-    setSearchField(field);
-    setSearchValue(value);
-    setCurrentPage(1); // Reset to first page when searching
-  };
-
-  const handleClearSearch = () => {
-    setSearchField("name");
-    setSearchValue("");
-    setCurrentPage(1);
-    // Fetch fresh data from Redux store
-    dispatch(fetchRoles({ page: 1, limit: 10, forceRefresh: true }));
-  };
-
-  const handleRefresh = () => {
-    // Reset all search and pagination state
-    setSearchField("name");
-    setSearchValue("");
-    setCurrentPage(1);
-    
-    // Force a fresh fetch by clearing the existing roles data first
-    // This ensures we get completely fresh data from the API
-    dispatch(fetchRoles({ page: 1, limit: 10, forceRefresh: true }));
-  };
-
-  // Initial load only
-  useEffect(() => {
-    let isMounted = true;
-    if (!hasInitialFetch.current && isMounted) {
-      hasInitialFetch.current = true;
-      console.log("🔄 Initial fetch triggered");
-      dispatch(fetchRoles({ page: 1, limit: 10 }));
-    }
-    return () => {
-      isMounted = false;
-    };
+  // Simple initial fetch
+  React.useEffect(() => {
+    dispatch(
+      fetchRoles({
+        page: 1,
+        limit: 10,
+        sort_field: "created_at",
+        sort_by: "desc",
+      })
+    );
   }, [dispatch]);
 
-  // Handle search and pagination changes (only after initial load)
-  useEffect(() => {
-    // Skip the first render to prevent duplicate API calls
-    if (!hasInitialFetch.current) {
-      return;
-    }
-
-    // Skip if this is the initial state (no actual changes from user interaction)
-    const isInitialState = currentPage === 1 && searchField === "name" && searchValue === "";
-    if (isInitialState) {
-      console.log("🔄 Skipping useEffect - initial state detected");
-      return;
-    }
-
-    console.log("🔄 Search/pagination useEffect triggered:", { searchField, searchValue, currentPage });
-
-    const params: {
-      limit?: number;
-      page?: number;
-      filter_field?: string;
-      filter_value?: string;
-    } = {
-      limit: 10,
-      page: currentPage,
-    };
-
-    if (searchValue.trim()) {
-      // Only use Laravel-style format: filter[field_name] = value
-      (params as any)[`filter[${searchField}]`] = searchValue.trim();
-    }
-
-    console.log("🔄 Dispatching fetchRoles with params:", params);
-    dispatch(fetchRoles(params));
-  }, [searchField, searchValue, currentPage, dispatch]);
-
-  useEffect(() => {
-    if (error) {
-      // You can add a toast notification here
-      console.error("Role error:", error);
-    }
-  }, [error]);
-
-
+  const handleViewRole = (role: Role) => {
+    navigate(`/roles/${role.id}`);
+  };
 
   const handleEditRole = (role: Role) => {
     navigate(`/roles/${role.id}/edit`);
   };
 
-  const handleDeleteRole = async () => {
-    if (!selectedRole) return;
-
-    try {
-      await dispatch(deleteRole(selectedRole.id)).unwrap();
-      setIsDeleteModalOpen(false);
-      setSelectedRole(null);
-      dispatch(fetchRoles({ page: 1, limit: 10, forceRefresh: true }));
-    } catch (error) {
-      console.error("Failed to delete role:", error);
+  const handleDeleteRole = async (role: Role) => {
+    if (
+      window.confirm(`Are you sure you want to delete role "${role.name}"?`)
+    ) {
+      try {
+        setIsLocalLoading(true);
+        await dispatch(deleteRole(role.id)).unwrap();
+        // Refresh the roles list
+        await dispatch(
+          fetchRoles({
+            page: currentPage,
+            limit: currentPageSize,
+            sort_field: sortField,
+            sort_by: sortDirection,
+            forceRefresh: true,
+          })
+        );
+      } catch (error) {
+        console.error("Failed to delete role:", error);
+      } finally {
+        setIsLocalLoading(false);
+      }
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
+      "1": { label: "Active", className: "bg-green-100 text-green-800" },
+      "0": { label: "Inactive", className: "bg-red-100 text-red-800" },
+    };
 
+    const statusInfo = statusMap[status] || {
+      label: "Unknown",
+      className: "bg-gray-100 text-gray-800",
+    };
 
-  const openDeleteModal = (role: Role) => {
-    setSelectedRole(role);
-    setIsDeleteModalOpen(true);
+    return (
+      <span
+        className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
+      >
+        {statusInfo.label}
+      </span>
+    );
   };
-
-
-
-
 
   const tableColumns = [
     {
       key: "id",
       header: "ID",
-      width: "w-16",
-      searchable: false,
+      sortable: true,
+      render: (_: unknown, role: Role) => role?.id || "N/A",
     },
     {
       key: "name",
-      header: "Role Name",
-      searchable: true,
-      render: (value: unknown) => (
-        <div className="font-medium text-gray-900">{String(value)}</div>
-      ),
+      header: "Name",
+      sortable: true,
+      render: (_: unknown, role: Role) => role?.name || "N/A",
+    },
+    {
+      key: "display_name",
+      header: "Display Name",
+      sortable: true,
+      render: (_: unknown, role: Role) => role?.display_name || "N/A",
     },
     {
       key: "description",
       header: "Description",
-      searchable: true,
-      render: (value: unknown) => (
-        <div className="text-gray-600">{value ? String(value) : "-"}</div>
-      ),
+      sortable: false,
+      render: (_: unknown, role: Role) => role?.description || "N/A",
     },
     {
-      key: "permissions",
-      header: "Permissions",
-      searchable: false,
-      render: (value: unknown) => (
-        <div className="text-gray-600">
-          {Array.isArray(value) ? value.length : 0} permissions
-        </div>
-      ),
+      key: "status",
+      header: "Status",
+      sortable: true,
+      render: (_: unknown, role: Role) => getStatusBadge(role?.status || "0"),
     },
     {
       key: "created_at",
       header: "Created At",
-      searchable: false,
-      render: (value: unknown) => (
-        <span className="text-gray-500">
-          {value ? new Date(String(value)).toLocaleDateString() : "-"}
-        </span>
-      ),
+      sortable: true,
+      render: (_: unknown, role: Role) =>
+        role?.created_at
+          ? new Date(role.created_at).toLocaleDateString()
+          : "N/A",
     },
     {
       key: "actions",
       header: "Actions",
-      width: "w-48",
-      searchable: false,
-      render: (_: unknown, role: Role) => (
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => handleEditRole(role)}
-            leftIcon={<Edit className="h-4 w-4" />}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => openDeleteModal(role)}
-            leftIcon={<Trash2 className="h-4 w-4" />}
-            className="text-red-600 hover:text-red-700"
-          >
-            Delete
-          </Button>
-        </div>
-      ),
+      sortable: false,
+      render: (_: unknown, role: Role) => {
+        if (!role) return <div>N/A</div>;
+
+        return (
+          <div className="flex space-x-2">
+            <PermissionGate permission={PERMISSIONS.ROLES_SHOW}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleViewRole(role)}
+                className="flex items-center space-x-1"
+              >
+                <Shield className="h-4 w-4" />
+                <span>View</span>
+              </Button>
+            </PermissionGate>
+
+            <PermissionGate permission={PERMISSIONS.ROLES_EDIT}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleEditRole(role)}
+                className="flex items-center space-x-1"
+              >
+                <Edit className="h-4 w-4" />
+                <span>Edit</span>
+              </Button>
+            </PermissionGate>
+
+            <PermissionGate permission={PERMISSIONS.ROLES_DELETE}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleDeleteRole(role)}
+                className="flex items-center space-x-1 text-red-600 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete</span>
+              </Button>
+            </PermissionGate>
+          </div>
+        );
+      },
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-3">
+          <Shield className="h-8 w-8 text-blue-600" />
           <h1 className="text-2xl font-bold text-gray-900">Roles</h1>
-          <p className="text-gray-600">Manage user roles and permissions</p>
         </div>
-        <Button
-          onClick={() => navigate('/roles/create')}
-          leftIcon={<Plus className="h-5 w-5" />}
-        >
-          Add Role
-        </Button>
+
+        <PermissionGate permission={PERMISSIONS.ROLES_CREATE}>
+          <Button
+            onClick={() => navigate("/roles/create")}
+            className="flex items-center space-x-2"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Role</span>
+          </Button>
+        </PermissionGate>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Shield className="h-8 w-8 text-primary-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Roles</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(roles) ? roles.length : roles?.data?.length || 0}
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Users className="h-8 w-8 text-primary-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Active Roles</p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(roles)
-                  ? roles.filter((role) => role.status === "1").length
-                  : roles?.data?.filter((role) => role.status === "1").length ||
-                    0}
-              </p>
-            </div>
-          </div>
-        </Card>
-        <Card>
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <Users className="h-8 w-8 text-primary-600" />
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">
-                Inactive Roles
-              </p>
-              <p className="text-2xl font-semibold text-gray-900">
-                {Array.isArray(roles)
-                  ? roles.filter((role) => role.status === "0").length
-                  : roles?.data?.filter((role) => role.status === "0").length ||
-                    0}
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Roles Table */}
       <DataTable
-        data={
-          roles || {
-            data: [],
-            current_page: 1,
-            total: 0,
-            from: 0,
-            to: 0,
-            last_page: 1,
-            prev_page_url: null,
-            next_page_url: null,
-            first_page_url: "",
-            last_page_url: "",
-            path: "",
-            per_page: 10,
-            links: [],
-          }
-        }
-        columns={tableColumns}
-        isLoading={isLoading}
-        onSearch={handleSearch}
-        onClearSearch={handleClearSearch} // Clear search value when X is clicked
-        onRefresh={handleRefresh} // Refresh data when refresh button is clicked
+        data={roles || ([] as any)}
+        columns={tableColumns as any}
+        isLoading={isLoading || isLocalLoading}
         onPageChange={(page) => {
           setCurrentPage(page);
-          const params: any = {
-            page,
-            limit: currentPageSize,
-          };
-
-          if (searchValue.trim()) {
-            // Only use Laravel-style format: filter[field_name] = value
-            params[`filter[${searchField}]`] = searchValue.trim();
-          }
-
-          dispatch(fetchRoles(params));
+          setIsLocalLoading(true);
+          dispatch(
+            fetchRoles({
+              page,
+              limit: currentPageSize,
+              sort_field: sortField,
+              sort_by: sortDirection,
+            })
+          ).finally(() => setIsLocalLoading(false));
         }}
-        onPageSizeChange={(newPageSize) => {
-          setCurrentPageSize(newPageSize);
-          setCurrentPage(1); // Reset to first page when changing page size
+        onPageSizeChange={(pageSize) => {
+          setCurrentPage(1);
+          setCurrentPageSize(pageSize);
+          setIsLocalLoading(true);
+          dispatch(
+            fetchRoles({
+              page: 1,
+              limit: pageSize,
+              sort_field: sortField,
+              sort_by: sortDirection,
+            })
+          ).finally(() => setIsLocalLoading(false));
+        }}
+        onSort={(field, direction) => {
+          setSortField(field);
+          setSortDirection(direction);
+          setCurrentPage(1);
+          setIsLocalLoading(true);
+          dispatch(
+            fetchRoles({
+              page: 1,
+              limit: currentPageSize,
+              sort_field: field,
+              sort_by: direction,
+            })
+          ).finally(() => setIsLocalLoading(false));
+        }}
+        onSearch={(field, value) => {
+          setSearchField(field);
+          setSearchValue(value);
+          setCurrentPage(1);
+          setIsLocalLoading(true);
           const params: any = {
             page: 1,
-            limit: newPageSize,
+            limit: currentPageSize,
+            sort_field: sortField,
+            sort_by: sortDirection,
           };
-
-          if (searchValue.trim()) {
-            // Only use Laravel-style format: filter[field_name] = value
-            params[`filter[${searchField}]`] = searchValue.trim();
+          if (value.trim()) {
+            params[`filter[${field}]`] = value.trim();
           }
-
-          dispatch(fetchRoles(params));
+          dispatch(fetchRoles(params)).finally(() => setIsLocalLoading(false));
+        }}
+        onClearSearch={() => {
+          setSearchField("name");
+          setSearchValue("");
+          setCurrentPage(1);
+          setSortField("created_at");
+          setSortDirection("desc");
+          setIsLocalLoading(true);
+          dispatch(
+            fetchRoles({
+              page: 1,
+              limit: currentPageSize,
+              sort_field: "created_at",
+              sort_by: "desc",
+              forceRefresh: true,
+            })
+          ).finally(() => setIsLocalLoading(false));
+        }}
+        onRefresh={() => {
+          setIsLocalLoading(true);
+          dispatch(
+            fetchRoles({
+              page: currentPage,
+              limit: currentPageSize,
+              sort_field: sortField,
+              sort_by: sortDirection,
+              forceRefresh: true,
+            })
+          ).finally(() => setIsLocalLoading(false));
         }}
         searchField={searchField}
         searchValue={searchValue}
-        searchPlaceholder="Search roles..."
-        showSearch={true}
-        showPagination={true}
+        currentPage={currentPage}
+        pageSize={currentPageSize}
       />
-
-
-
-      {/* Delete Confirmation Modal */}
-      <Modal
-        isOpen={isDeleteModalOpen}
-        onClose={() => setIsDeleteModalOpen(false)}
-        title="Delete Role"
-        size="sm"
-      >
-        <div className="text-center py-4">
-          <p className="text-gray-600 mb-2 leading-relaxed">
-            Are you sure you want to delete the role{" "}
-            <span className="font-semibold text-gray-900">
-              {selectedRole?.name}
-            </span>
-            ?
-            <br />
-            <span className="text-sm text-gray-500">
-              This action cannot be undone.
-            </span>
-          </p>
-        </div>
-        <FormActions className="pt-4">
-          <Button
-            variant="secondary"
-            onClick={() => setIsDeleteModalOpen(false)}
-            className="px-6 py-2"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="danger"
-            onClick={handleDeleteRole}
-            className="px-6 py-2"
-          >
-            Delete Role
-          </Button>
-        </FormActions>
-      </Modal>
-
-
     </div>
   );
 };

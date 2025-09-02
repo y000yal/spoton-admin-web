@@ -6,7 +6,7 @@ export interface PermissionQueryParams {
   page?: number;
   filter_field?: string;
   filter_value?: string;
-  sort_by?: string;
+  sort_field?: string;
   sort_order?: 'asc' | 'desc';
 }
 

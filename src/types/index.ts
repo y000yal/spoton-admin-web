@@ -14,13 +14,18 @@ export interface AuthResponse {
 // User Types
 export interface User {
   id: number;
-  full_name: string | null;
+  full_name: string | null | {
+    first_name: string;
+    middle_name?: string;
+    last_name: string;
+  };
   username: string | null;
   email: string | null;
   email_verified_at: string | null;
   status: string;
   created_at: string;
   updated_at: string | null;
+  role_id?: number;
   role?: Role;
 }
 

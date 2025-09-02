@@ -40,8 +40,8 @@ export const fetchUsers = createAsyncThunk(
     limit: number; 
     filter_field?: string;
     filter_value?: string;
-    sort_by?: string;
-    sort_order?: 'asc' | 'desc';
+    sort_field?: string;
+    sort_by?: 'asc' | 'desc';
     forceRefresh?: boolean;
     [key: string]: any; // Allow dynamic filter keys like filter[name]
   }, { rejectWithValue, getState }) => {
@@ -53,7 +53,7 @@ export const fetchUsers = createAsyncThunk(
       key.startsWith('filter[') || 
       params.filter_field || 
       params.filter_value || 
-      params.sort_by
+      params.sort_field
     );
     
     // Check if page size has changed (this should trigger a new fetch)
@@ -113,8 +113,8 @@ export const searchUsers = createAsyncThunk(
     limit: number;
     searchField?: string;
     searchValue?: string;
-    sort_by?: string;
-    sort_order?: 'asc' | 'desc';
+    sort_field?: string;
+    sort_by?: 'asc' | 'desc';
     forceRefresh?: boolean;
   }, { rejectWithValue, getState }) => {
     const state = getState() as { users: UserState };
@@ -145,9 +145,9 @@ export const searchUsers = createAsyncThunk(
     }
     
     // Add sorting if provided
-    if (params.sort_by) {
-      apiParams.sort_by = params.sort_by;
-      apiParams.sort_order = params.sort_order || 'asc';
+    if (params.sort_field) {
+      apiParams.sort_field = params.sort_field;
+      apiParams.sort_by = params.sort_by || 'asc';
     }
     
     if (hasPageSizeChange) {

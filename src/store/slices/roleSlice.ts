@@ -28,7 +28,7 @@ export const fetchRoles = createAsyncThunk(
     page?: number;
     filter_field?: string;
     filter_value?: string;
-    sort_by?: string;
+    sort_field?: string;
     sort_order?: 'asc' | 'desc';
     forceRefresh?: boolean;
     [key: string]: any; // Allow dynamic filter keys like filter[name]
@@ -41,7 +41,7 @@ export const fetchRoles = createAsyncThunk(
       key.startsWith('filter[') || 
       params.filter_field || 
       params.filter_value || 
-      params.sort_by
+      params.sort_field
     );
     
     // Check if page size has changed (this should trigger a new fetch)
@@ -63,8 +63,17 @@ export const fetchRoles = createAsyncThunk(
     }
     
     try {
-      console.log("🔄 fetchRoles: Making API call to getRoles with params:", params);
-      const response = await roleService.getRoles(params);
+      // Map frontend parameters to backend format
+      const apiParams: any = { ...params };
+      
+      // Add sorting if provided
+      if (params.sort_field) {
+        apiParams.sort_field = params.sort_field;
+        apiParams.sort_by = params.sort_order || 'asc';
+      }
+      
+      console.log("🔄 fetchRoles: Making API call to getRoles with params:", apiParams);
+      const response = await roleService.getRoles(apiParams);
       console.log("🔄 fetchRoles: API response received");
       return response;
     } catch (error: unknown) {

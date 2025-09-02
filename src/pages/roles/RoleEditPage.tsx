@@ -7,7 +7,7 @@ import {
   fetchRolePermissions,
   assignRolePermissions,
 } from "../../store/slices/roleSlice";
-import { fetchPermissions } from "../../store/slices/permissionSlice";
+import { fetchAllPermissionsForRoles } from "../../store/slices/permissionSlice";
 
 import {
   Card,
@@ -17,6 +17,7 @@ import {
   FormSection,
   FormActions,
 } from "../../components/UI";
+import GroupedPermissionsList from "../../components/GroupedPermissionsList";
 import { ArrowLeft, Save, X, Key, RefreshCw } from "lucide-react";
 import type { UpdateRoleRequest } from "../../types";
 
@@ -25,7 +26,6 @@ const RoleEditPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const hasInitialFetch = useRef(false);
-  const hasInitialFetchPermissions = useRef(false);
 
   const { currentRole, isLoading } = useAppSelector((state) => state.roles);
   const { permissions } = useAppSelector((state) => state.permissions);
@@ -55,24 +55,12 @@ const RoleEditPage: React.FC = () => {
     }
   }, [roleId, dispatch]);
 
-  // Load permissions if not already loaded
+  // Load permissions for role editing - always fetch all permissions
   useEffect(() => {
-    // Only fetch permissions if they're not already in the state
-    if (!permissions?.data || permissions.data.length === 0) {
-      if (!hasInitialFetchPermissions.current) {
-        hasInitialFetchPermissions.current = true;
-        console.log("🔄 RoleEditPage: No permissions in state, fetching permissions...");
-        dispatch(fetchPermissions({ page: 1, limit: 100 }));
-      }
-    } else {
-      console.log("🔄 RoleEditPage: Using existing permissions from state, no need to fetch");
-      // If permissions are already loaded, we can stop showing the loading state
-      // but only if we're not currently loading role permissions
-      if (!permissionsLoading) {
-        setPermissionsLoading(false);
-      }
-    }
-  }, [permissions, dispatch, permissionsLoading]);
+    // Always fetch all permissions for role editing to ensure we have complete data
+    // This prevents issues when coming from permissions list page which has limited permissions
+    dispatch(fetchAllPermissionsForRoles());
+  }, [dispatch]);
 
   // Clear all data immediately when role changes (to prevent showing old data)
   useEffect(() => {
@@ -90,7 +78,8 @@ const RoleEditPage: React.FC = () => {
       setPermissionsLoading(true);
       // Reset initial fetch flags for the new role
       hasInitialFetch.current = false;
-      hasInitialFetchPermissions.current = false;
+      // Don't reset permissions fetch flag - we want to keep permissions loaded
+      // hasInitialFetchPermissions.current = false;
     }
   }, [roleId]);
 
@@ -108,10 +97,9 @@ const RoleEditPage: React.FC = () => {
 
   // Load permissions for the role
   const loadRolePermissions = useCallback(async () => {
-    if (!currentRole) return;
-
-    console.log("🔄 RoleEditPage: Starting to load role permissions for role:", currentRole.id);
-    console.log("🔄 RoleEditPage: Available permissions in state:", permissions?.data?.length || 0);
+    if (!currentRole) {
+      return;
+    }
 
     setPermissionsLoading(true);
     try {
@@ -120,26 +108,20 @@ const RoleEditPage: React.FC = () => {
         fetchRolePermissions(currentRole.id)
       ).unwrap();
 
-      console.log("🔄 RoleEditPage: Role permissions API response:", result);
-
       // Set selected permissions based on role permissions
       const selectedSlugs = (result.permissions.permissions || []).map(
         (rp: Record<string, unknown>) => rp.slug as string
       );
-      
-      console.log("🔄 RoleEditPage: Extracted selected slugs:", selectedSlugs);
       
       // Use permissions from state to find matching IDs
       const selectedIds = (permissions?.data || [])
         .filter((p) => selectedSlugs.includes(p.slug as string))
         .map((p) => p.id as number);
       
-      console.log("🔄 RoleEditPage: Final selected permission IDs:", selectedIds);
-      console.log("🔄 RoleEditPage: Available permissions data:", permissions?.data?.map(p => ({ id: p.id, slug: p.slug, name: p.name })));
-      
       setSelectedPermissions(selectedIds);
     } catch (error) {
       console.error("Failed to load role permissions:", error);
+      setSelectedPermissions([]);
     } finally {
       setPermissionsLoading(false);
     }
@@ -147,13 +129,22 @@ const RoleEditPage: React.FC = () => {
 
   // Load role permissions when both role and permissions are available
   useEffect(() => {
-    if (currentRole && permissions?.data && permissions.data.length > 0) {
-      console.log("🔄 RoleEditPage: Both role and permissions loaded, loading role permissions...");
-      // Ensure we're in loading state when starting to load role permissions
-      setPermissionsLoading(true);
-      loadRolePermissions();
+    if (currentRole) {
+      if (permissions?.data && permissions.data.length > 0) {
+        // Ensure we're in loading state when starting to load role permissions
+        setPermissionsLoading(true);
+        loadRolePermissions();
+      }
     }
   }, [currentRole, permissions, loadRolePermissions]);
+
+  // Force refresh permissions when role changes
+  useEffect(() => {
+    if (roleId) {
+      // Always fetch all permissions when role changes to ensure we have complete data
+      dispatch(fetchAllPermissionsForRoles());
+    }
+  }, [roleId, dispatch]);
 
   // Handle permission toggle
   const handlePermissionToggle = (permissionId: number) => {
@@ -203,8 +194,8 @@ const RoleEditPage: React.FC = () => {
         updateRole({ roleId: parseInt(roleId), roleData: formData })
       ).unwrap();
       navigate("/roles");
-    } catch (err: any) {
-      setError(err.message || "Failed to update role");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to update role");
     } finally {
       setIsSubmitting(false);
     }
@@ -390,7 +381,7 @@ const RoleEditPage: React.FC = () => {
           <div className="space-y-6">
             <FormSection title="Role Permissions">
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-4">
                   <div>
                     <p className="text-gray-600">
                       Select the permissions that should be assigned to this role.
@@ -405,28 +396,6 @@ const RoleEditPage: React.FC = () => {
                        </p>
                      ) : null}
                   </div>
-                  <div className="flex items-center space-x-2">
-                                          <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          const allPermissionIds = (permissions?.data || []).map(
-                            (p) => p.id
-                          );
-                          setSelectedPermissions(allPermissionIds);
-                        }}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        Select All
-                      </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedPermissions([])}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      Remove All
-                    </Button>
                                          <Button
                        variant="ghost"
                        size="sm"
@@ -442,46 +411,19 @@ const RoleEditPage: React.FC = () => {
                        {permissionsLoading ? "Refreshing..." : "Refresh"}
                      </Button>
                   </div>
-                </div>
 
-                {permissionsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                    <span className="ml-2 text-gray-600">
-                      Loading role permissions...
-                    </span>
-                  </div>
-                ) : permissions?.data && permissions.data.length > 0 ? (
-                  <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
-                    {permissions.data.map((permission) => (
-                      <label
-                        key={permission.id}
-                        className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => handlePermissionToggle(permission.id)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
-                            {permission.display_name || permission.name}
-                          </div>
-                          {permission.description && (
-                            <div className="text-sm text-gray-500">
-                              {permission.description}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    No permissions available
-                  </div>
-                )}
+                <GroupedPermissionsList
+                  permissions={permissions?.data || []}
+                  selectedPermissions={selectedPermissions}
+                  onPermissionToggle={handlePermissionToggle}
+                  onSelectAll={() => {
+                    const allPermissionIds = (permissions?.data || []).map((p) => p.id);
+                    setSelectedPermissions(allPermissionIds);
+                  }}
+                  onRemoveAll={() => setSelectedPermissions([])}
+                  isLoading={permissionsLoading}
+                  showSelectAllButtons={true}
+                />
               </div>
             </FormSection>
 

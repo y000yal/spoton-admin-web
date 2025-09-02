@@ -26,7 +26,7 @@ export const fetchPermissions = createAsyncThunk(
     page?: number;
     filter_field?: string;
     filter_value?: string;
-    sort_by?: string;
+    sort_field?: string;
     sort_order?: 'asc' | 'desc';
     forceRefresh?: boolean;
     [key: string]: any; // Allow dynamic filter keys like filter[name]
@@ -39,7 +39,7 @@ export const fetchPermissions = createAsyncThunk(
       key.startsWith('filter[') || 
       params.filter_field || 
       params.filter_value || 
-      params.sort_by
+      params.sort_field
     );
     
     // Check if page size has changed (this should trigger a new fetch)
@@ -64,6 +64,19 @@ export const fetchPermissions = createAsyncThunk(
       console.log("🔄 fetchPermissions: Making API call to getPermissions with params:", params);
       const response = await permissionService.getPermissions(params);
       console.log("🔄 fetchPermissions: API response received");
+      return response;
+    } catch (error: unknown) {
+      return rejectWithValue(extractErrorMessage(error));
+    }
+  }
+);
+
+// Special thunk for role management that always fetches all permissions
+export const fetchAllPermissionsForRoles = createAsyncThunk(
+  'permissions/fetchAllPermissionsForRoles',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await permissionService.getPermissions({ page: 1, limit: 1000 });
       return response;
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
@@ -111,7 +124,7 @@ export const searchPermissions = createAsyncThunk(
     page?: number;
     searchField?: string;
     searchValue?: string;
-    sort_by?: string;
+    sort_field?: string;
     sort_order?: 'asc' | 'desc';
     forceRefresh?: boolean;
   } = {}, { rejectWithValue, getState }) => {
@@ -147,9 +160,9 @@ export const searchPermissions = createAsyncThunk(
     }
     
     // Add sorting if provided
-    if (params.sort_by) {
-      apiParams.sort_by = params.sort_by;
-      apiParams.sort_order = params.sort_order || 'asc';
+    if (params.sort_field) {
+      apiParams.sort_field = params.sort_field;
+      apiParams.sort_by = params.sort_order || 'asc';
     }
     
     if (params.forceRefresh) {
@@ -223,6 +236,21 @@ const permissionSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchPermissions.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      
+      // Fetch all permissions for roles
+      .addCase(fetchAllPermissionsForRoles.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllPermissionsForRoles.fulfilled, (state, action: PayloadAction<PaginatedResponse<Permission>>) => {
+        state.isLoading = false;
+        state.permissions = action.payload;
+        state.error = null;
+      })
+      .addCase(fetchAllPermissionsForRoles.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;
       })

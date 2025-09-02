@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { createRole } from '../../store/slices/roleSlice';
-import { fetchPermissions } from '../../store/slices/permissionSlice';
+import { fetchAllPermissionsForRoles } from '../../store/slices/permissionSlice';
 import { roleService } from '../../services/api';
 
 import { Card, Button, InputField, TextareaField, FormSection, FormActions } from '../../components/UI';
+import GroupedPermissionsList from '../../components/GroupedPermissionsList';
 import { ArrowLeft, Save, X, Key, RefreshCw } from 'lucide-react';
 import type { CreateRoleRequest } from '../../types';
 
@@ -31,13 +32,13 @@ const RoleCreatePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load permissions if not already loaded
+  // Load permissions for role creation - always fetch all permissions
   useEffect(() => {
-    if (!permissionsLoaded || !permissions?.data || permissions.data.length === 0) {
-      dispatch(fetchPermissions({ page: 1, limit: 100 }));
-      setPermissionsLoaded(true);
-    }
-  }, [permissionsLoaded, permissions, dispatch]);
+    // Always fetch all permissions for role creation to ensure we have complete data
+    // This prevents issues when coming from permissions list page which has limited permissions
+    dispatch(fetchAllPermissionsForRoles());
+    setPermissionsLoaded(true);
+  }, [dispatch]);
 
   // Handle permission toggle
   const handlePermissionToggle = (permissionId: number) => {
@@ -209,65 +210,24 @@ const RoleCreatePage: React.FC = () => {
           <div className="space-y-6">
             <FormSection title="Role Permissions">
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="mb-4">
                   <p className="text-gray-600">
                     Select the permissions that should be assigned to this new role.
                   </p>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const allPermissionIds = (permissions?.data || []).map((p: any) => p.id);
-                        setSelectedPermissions(allPermissionIds);
-                      }}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      Select All
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setSelectedPermissions([])}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      Remove All
-                    </Button>
-                  </div>
                 </div>
 
-                {permissionsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-                    <span className="ml-2 text-gray-600">Loading permissions...</span>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
-                    {(permissions?.data || [])?.map((permission: any) => (
-                      <label
-                        key={permission.id}
-                        className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => handlePermissionToggle(permission.id)}
-                          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                        />
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">
-                            {permission.display_name || permission.name}
-                          </div>
-                          {permission.description && (
-                            <div className="text-sm text-gray-500">
-                              {permission.description}
-                            </div>
-                          )}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                )}
+                <GroupedPermissionsList
+                  permissions={permissions?.data || []}
+                  selectedPermissions={selectedPermissions}
+                  onPermissionToggle={handlePermissionToggle}
+                  onSelectAll={() => {
+                    const allPermissionIds = (permissions?.data || []).map((p: any) => p.id);
+                    setSelectedPermissions(allPermissionIds);
+                  }}
+                  onRemoveAll={() => setSelectedPermissions([])}
+                  isLoading={permissionsLoading}
+                  showSelectAllButtons={true}
+                />
               </div>
             </FormSection>
 

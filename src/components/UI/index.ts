@@ -17,6 +17,11 @@ export { default as Toast } from './Toast';
 export { default as ToastContainer } from './ToastContainer';
 export { default as SearchBar } from './SearchBar';
 
+// Permission and Route components
+export { default as ProtectedRoute } from '../ProtectedRoute';
+export { default as PermissionGate } from '../PermissionGate';
+export { default as GroupedPermissionsList } from '../GroupedPermissionsList';
+
 // Re-export types for convenience
 export type { ToastType } from './Toast';
 export type { ToastItem } from './ToastContainer';

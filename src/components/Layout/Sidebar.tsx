@@ -8,6 +8,7 @@ import {
   Home
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import { getFilteredNavigationItems } from '../../utils/permissions';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onCollapseToggle, isDesktop }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const location = useLocation();
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -69,12 +70,21 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
     };
   }, [shouldShowBackdrop, isDesktop, isCollapsed, onToggle]);
 
-  const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: Home },
-    { name: 'Users', href: '/users', icon: Users },
-    { name: 'Roles', href: '/roles', icon: Shield },
-    { name: 'Permissions', href: '/permissions', icon: Key },
-  ];
+  // Get filtered navigation items based on user permissions
+  const filteredNavigationItems = getFilteredNavigationItems(user);
+  
+  // Map navigation items to include icons
+  const iconMap = {
+    'Dashboard': Home,
+    'Users': Users,
+    'Roles': Shield,
+    'Permissions': Key,
+  };
+  
+  const navigation = filteredNavigationItems.map(item => ({
+    ...item,
+    icon: iconMap[item.name as keyof typeof iconMap] || Home,
+  }));
 
   const handleLogout = () => {
     logout();

@@ -9,11 +9,13 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from './pages/users';
 import { RolesPage, RoleEditPage, RoleCreatePage } from './pages/roles';
-import { PermissionsPage, PermissionEditPage } from './pages/permissions';
+import { PermissionsPage, PermissionCreatePage, PermissionEditPage } from './pages/permissions';
 import Layout from './components/Layout/Layout';
+import ProtectedRoute from './components/ProtectedRoute';
+import { PERMISSIONS } from './utils/permissions';
 
-// Protected Route Component
-const ProtectedRoute: React.FC = () => {
+// Authentication Guard Component
+const AuthGuard: React.FC = () => {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) {
@@ -46,26 +48,77 @@ const App: React.FC = () => {
               <Route path="/login" element={<LoginPage />} />
               
               {/* Protected Routes */}
-              <Route path="/" element={<ProtectedRoute />}>
+              <Route path="/" element={<AuthGuard />}>
                 <Route element={<Layout />}>
                   <Route index element={<Navigate to="/dashboard" replace />} />
-                  <Route path="dashboard" element={<DashboardPage />} />
+                  
+                  {/* Dashboard Route */}
+                  <Route path="dashboard" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.DASHBOARD_VIEW]}>
+                      <DashboardPage />
+                    </ProtectedRoute>
+                  } />
                   
                   {/* User Routes */}
-                  <Route path="users" element={<UsersPage />} />
-                  <Route path="users/create" element={<UserCreatePage />} />
-                  <Route path="users/:userId" element={<UserDetailPage />} />
-                  <Route path="users/:userId/edit" element={<UserEditPage />} />
-                  <Route path="profile" element={<UserDetailPage />} />
+                  <Route path="users" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.USERS_VIEW]}>
+                      <UsersPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="users/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.USERS_CREATE]}>
+                      <UserCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="users/:userId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.USERS_SHOW]}>
+                      <UserDetailPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="users/:userId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.USERS_EDIT]}>
+                      <UserEditPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="profile" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.USERS_SHOW]}>
+                      <UserDetailPage />
+                    </ProtectedRoute>
+                  } />
                   
                   {/* Role Routes */}
-                  <Route path="roles" element={<RolesPage />} />
-                  <Route path="roles/create" element={<RoleCreatePage />} />
-                  <Route path="roles/:roleId/edit" element={<RoleEditPage />} />
+                  <Route path="roles" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.ROLES_VIEW]}>
+                      <RolesPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="roles/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.ROLES_CREATE]}>
+                      <RoleCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="roles/:roleId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.ROLES_EDIT]}>
+                      <RoleEditPage />
+                    </ProtectedRoute>
+                  } />
                   
                   {/* Permission Routes */}
-                  <Route path="permissions" element={<PermissionsPage />} />
-                  <Route path="permissions/:permissionId/edit" element={<PermissionEditPage />} />
+                  <Route path="permissions" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.PERMISSIONS_VIEW]}>
+                      <PermissionsPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="permissions/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.PERMISSIONS_CREATE]}>
+                      <PermissionCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="permissions/:permissionId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.PERMISSIONS_EDIT]}>
+                      <PermissionEditPage />
+                    </ProtectedRoute>
+                  } />
                 </Route>
               </Route>
               
