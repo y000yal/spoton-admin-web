@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { fetchUsers, deleteUser } from "../../store/slices/userSlice";
 
-import { Card, Button, DataTable, PermissionGate } from "../../components/UI";
+import { Card, Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
 import { Plus, Users, Eye, Edit, Trash2 } from "lucide-react";
 import { PERMISSIONS } from "../../utils/permissions";
 import type { User } from "../../types";
@@ -21,6 +21,17 @@ const UsersPage: React.FC = () => {
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    user: User | null;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    user: null,
+    isLoading: false
+  });
 
   // Simple initial fetch
   React.useEffect(() => {
@@ -42,28 +53,41 @@ const UsersPage: React.FC = () => {
     navigate(`/users/${user.id}/edit`);
   };
 
-  const handleDeleteUser = async (user: User) => {
-    if (
-      window.confirm(`Are you sure you want to delete user "${user.username}"?`)
-    ) {
-      try {
-        setIsLocalLoading(true);
-        await dispatch(deleteUser(user.id)).unwrap();
-        // Refresh the users list
-        await dispatch(
-          fetchUsers({
-            page: currentPage,
-            limit: 10,
-            sort_field: sortField,
-            sort_by: sortDirection,
-            forceRefresh: true,
-          })
-        );
-      } catch (error) {
-        console.error("Failed to delete user:", error);
-      } finally {
-        setIsLocalLoading(false);
-      }
+  const handleDeleteUser = (user: User) => {
+    setDeleteModal({
+      isOpen: true,
+      user,
+      isLoading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.user) return;
+
+    setDeleteModal(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      await dispatch(deleteUser(deleteModal.user.id)).unwrap();
+      // Refresh the users list
+      await dispatch(
+        fetchUsers({
+          page: currentPage,
+          limit: 10,
+          sort_field: sortField,
+          sort_by: sortDirection,
+          forceRefresh: true,
+        })
+      );
+      setDeleteModal({ isOpen: false, user: null, isLoading: false });
+    } catch (error) {
+      console.error("Failed to delete user:", error);
+      setDeleteModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.isLoading) {
+      setDeleteModal({ isOpen: false, user: null, isLoading: false });
     }
   };
 
@@ -294,6 +318,16 @@ const UsersPage: React.FC = () => {
         searchValue={searchValue}
         currentPage={currentPage}
         pageSize={10}
+      />
+
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete User"
+        message="Are you sure you want to delete this user? This action cannot be undone."
+        itemName={deleteModal.user?.username || ''}
+        isLoading={deleteModal.isLoading}
       />
     </div>
   );

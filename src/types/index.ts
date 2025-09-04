@@ -147,3 +147,39 @@ export interface UserFilters extends PaginationParams {
   status?: string;
   role_id?: number;
 }
+
+// Sport Types
+export interface Sport {
+  id: number;
+  name: string;
+  description: string | null;
+  status: string;
+  sport_image?: string | null;
+  media_url?: string | null;
+  media_id?: number | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface CreateSportRequest {
+  name: string;
+  description?: string;
+  status: string;
+  sport_image?: File | string;
+}
+
+export interface UpdateSportRequest {
+  name?: string;
+  description?: string;
+  status?: string;
+  sport_image?: File | string;
+}
+
+// Media Types
+export interface MediaUploadResponse {
+  id?: number;
+  media_id?: number;
+  url?: string;
+  title?: string;
+  [key: string]: any;
+}

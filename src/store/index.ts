@@ -3,6 +3,7 @@ import authReducer from './slices/authSlice';
 import userReducer from './slices/userSlice';
 import roleReducer from './slices/roleSlice';
 import permissionReducer from './slices/permissionSlice';
+import sportReducer from './slices/sportSlice';
 import uiReducer from './slices/uiSlice';
 
 export const store = configureStore({
@@ -11,6 +12,7 @@ export const store = configureStore({
     users: userReducer,
     roles: roleReducer,
     permissions: permissionReducer,
+    sports: sportReducer,
     ui: uiReducer,
   },
   middleware: (getDefaultMiddleware) =>

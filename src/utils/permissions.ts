@@ -27,6 +27,13 @@ export const PERMISSIONS = {
   PERMISSIONS_EDIT: 'permissions-update',
   PERMISSIONS_DELETE: 'permissions-destroy',
   PERMISSIONS_SHOW: 'permissions-show',
+  
+  // Sports management permissions
+  SPORTS_VIEW: 'sport-index',
+  SPORTS_CREATE: 'sport-store',
+  SPORTS_EDIT: 'sport-update',
+  SPORTS_DELETE: 'sport-destroy',
+  SPORTS_SHOW: 'sport-show',
 } as const;
 
 // Route to permission mapping
@@ -41,6 +48,10 @@ export const ROUTE_PERMISSIONS = {
   '/roles/:roleId/edit': [PERMISSIONS.ROLES_EDIT],
   '/permissions': [PERMISSIONS.PERMISSIONS_VIEW],
   '/permissions/:permissionId/edit': [PERMISSIONS.PERMISSIONS_EDIT],
+  '/sports': [PERMISSIONS.SPORTS_VIEW],
+  '/sports/create': [PERMISSIONS.SPORTS_CREATE],
+  '/sports/:sportId': [PERMISSIONS.SPORTS_SHOW],
+  '/sports/:sportId/edit': [PERMISSIONS.SPORTS_EDIT],
 } as const;
 
 // Navigation items with their required permissions
@@ -64,6 +75,11 @@ export const NAVIGATION_ITEMS = [
     name: 'Permissions',
     href: '/permissions',
     permission: PERMISSIONS.PERMISSIONS_VIEW,
+  },
+  {
+    name: 'Sports',
+    href: '/sports',
+    permission: PERMISSIONS.SPORTS_VIEW,
   },
 ] as const;
 

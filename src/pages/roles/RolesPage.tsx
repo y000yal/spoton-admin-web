@@ -4,7 +4,7 @@ import { Plus, Edit, Trash2, Shield } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "../../store/hooks";
 import { fetchRoles, deleteRole } from "../../store/slices/roleSlice";
 import type { Role } from "../../types";
-import { Button, DataTable, PermissionGate } from "../../components/UI";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
 import { PERMISSIONS } from "../../utils/permissions";
 
 const RolesPage: React.FC = () => {
@@ -20,6 +20,17 @@ const RolesPage: React.FC = () => {
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    role: Role | null;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    role: null,
+    isLoading: false
+  });
 
   // Simple initial fetch
   React.useEffect(() => {
@@ -41,28 +52,41 @@ const RolesPage: React.FC = () => {
     navigate(`/roles/${role.id}/edit`);
   };
 
-  const handleDeleteRole = async (role: Role) => {
-    if (
-      window.confirm(`Are you sure you want to delete role "${role.name}"?`)
-    ) {
-      try {
-        setIsLocalLoading(true);
-        await dispatch(deleteRole(role.id)).unwrap();
-        // Refresh the roles list
-        await dispatch(
-          fetchRoles({
-            page: currentPage,
-            limit: currentPageSize,
-            sort_field: sortField,
-            sort_by: sortDirection,
-            forceRefresh: true,
-          })
-        );
-      } catch (error) {
-        console.error("Failed to delete role:", error);
-      } finally {
-        setIsLocalLoading(false);
-      }
+  const handleDeleteRole = (role: Role) => {
+    setDeleteModal({
+      isOpen: true,
+      role,
+      isLoading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.role) return;
+
+    setDeleteModal(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      await dispatch(deleteRole(deleteModal.role.id)).unwrap();
+      // Refresh the roles list
+      await dispatch(
+        fetchRoles({
+          page: currentPage,
+          limit: currentPageSize,
+          sort_field: sortField,
+          sort_by: sortDirection,
+          forceRefresh: true,
+        })
+      );
+      setDeleteModal({ isOpen: false, role: null, isLoading: false });
+    } catch (error) {
+      console.error("Failed to delete role:", error);
+      setDeleteModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.isLoading) {
+      setDeleteModal({ isOpen: false, role: null, isLoading: false });
     }
   };
 
@@ -287,6 +311,16 @@ const RolesPage: React.FC = () => {
         searchValue={searchValue}
         currentPage={currentPage}
         pageSize={currentPageSize}
+      />
+
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Role"
+        message="Are you sure you want to delete this role? This action cannot be undone."
+        itemName={deleteModal.role?.name || ''}
+        isLoading={deleteModal.isLoading}
       />
     </div>
   );

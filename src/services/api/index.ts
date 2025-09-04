@@ -3,12 +3,14 @@ export { authService } from './auth';
 export { userService } from './users';
 export { roleService } from './roles';
 export { permissionService } from './permissions';
+export { sportService } from './sports';
 
 // Export service classes for advanced usage
 export { AuthService } from './auth';
 export { UserService } from './users';
 export { RoleService } from './roles';
 export { PermissionService } from './permissions';
+export { SportService } from './sports';
 
 // Export types
 export type {
@@ -29,11 +31,18 @@ export type {
   UpdatePermissionData
 } from './permissions';
 
+export type {
+  SportQueryParams,
+  CreateSportRequest,
+  UpdateSportRequest
+} from './sports';
+
 // Legacy export for backward compatibility
 import { authService } from './auth';
 import { userService } from './users';
 import { roleService } from './roles';
 import { permissionService } from './permissions';
+import { sportService } from './sports';
 
 // Create a legacy apiService object that maintains the old interface
 export const apiService = {
@@ -65,6 +74,13 @@ export const apiService = {
   createPermission: permissionService.createPermission.bind(permissionService),
   updatePermission: permissionService.updatePermission.bind(permissionService),
   deletePermission: permissionService.deletePermission.bind(permissionService),
+
+  // Sport methods
+  getSports: sportService.getSports.bind(sportService),
+  getSport: sportService.getSport.bind(sportService),
+  createSport: sportService.createSport.bind(sportService),
+  updateSport: sportService.updateSport.bind(sportService),
+  deleteSport: sportService.deleteSport.bind(sportService),
 };
 
 // Default export for backward compatibility

@@ -8,8 +8,9 @@ import { useAuth } from './hooks/useAuth';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from './pages/users';
-import { RolesPage, RoleEditPage, RoleCreatePage } from './pages/roles';
-import { PermissionsPage, PermissionCreatePage, PermissionEditPage } from './pages/permissions';
+import { RolesPage, RoleEditPage, RoleCreatePage, RoleDetailPage } from './pages/roles';
+import { PermissionsPage, PermissionCreatePage, PermissionEditPage, PermissionDetailPage } from './pages/permissions';
+import { SportsPage, SportCreatePage, SportEditPage, SportDetailPage } from './pages/sports';
 import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { PERMISSIONS } from './utils/permissions';
@@ -97,6 +98,11 @@ const App: React.FC = () => {
                       <RoleCreatePage />
                     </ProtectedRoute>
                   } />
+                  <Route path="roles/:roleId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.ROLES_SHOW]}>
+                      <RoleDetailPage />
+                    </ProtectedRoute>
+                  } />
                   <Route path="roles/:roleId/edit" element={
                     <ProtectedRoute requiredPermissions={[PERMISSIONS.ROLES_EDIT]}>
                       <RoleEditPage />
@@ -114,9 +120,36 @@ const App: React.FC = () => {
                       <PermissionCreatePage />
                     </ProtectedRoute>
                   } />
+                  <Route path="permissions/:permissionId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.PERMISSIONS_SHOW]}>
+                      <PermissionDetailPage />
+                    </ProtectedRoute>
+                  } />
                   <Route path="permissions/:permissionId/edit" element={
                     <ProtectedRoute requiredPermissions={[PERMISSIONS.PERMISSIONS_EDIT]}>
                       <PermissionEditPage />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* Sports Routes */}
+                  <Route path="sports" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.SPORTS_VIEW]}>
+                      <SportsPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="sports/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.SPORTS_CREATE]}>
+                      <SportCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="sports/:sportId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.SPORTS_SHOW]}>
+                      <SportDetailPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="sports/:sportId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.SPORTS_EDIT]}>
+                      <SportEditPage />
                     </ProtectedRoute>
                   } />
                 </Route>

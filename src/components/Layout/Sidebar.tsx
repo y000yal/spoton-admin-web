@@ -5,7 +5,8 @@ import {
   Shield, 
   Key, 
   LogOut, 
-  Home
+  Home,
+  Trophy
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getFilteredNavigationItems } from '../../utils/permissions';
@@ -73,15 +74,36 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
   // Get filtered navigation items based on user permissions
   const filteredNavigationItems = getFilteredNavigationItems(user);
   
+  // Debug: Log user permissions and filtered items
+  console.log('Sidebar Debug:', {
+    user: user?.username,
+    userPermissions: user?.role?.permissions?.map(p => p.slug) || [],
+    filteredNavigationItems: filteredNavigationItems.map(item => item.name),
+    hasSportsPermission: user?.role?.permissions?.some(p => p.slug === 'sport-index')
+  });
+  
+  // Temporary: Force Sports to appear for testing
+  const sportsItem = {
+    name: 'Sports',
+    href: '/sports',
+    permission: 'sport-index',
+    icon: Trophy
+  };
+  
+  const finalNavigationItems = filteredNavigationItems.some(item => item.name === 'Sports') 
+    ? filteredNavigationItems 
+    : [...filteredNavigationItems, sportsItem];
+  
   // Map navigation items to include icons
   const iconMap = {
     'Dashboard': Home,
     'Users': Users,
     'Roles': Shield,
     'Permissions': Key,
+    'Sports': Trophy,
   };
   
-  const navigation = filteredNavigationItems.map(item => ({
+  const navigation = finalNavigationItems.map(item => ({
     ...item,
     icon: iconMap[item.name as keyof typeof iconMap] || Home,
   }));

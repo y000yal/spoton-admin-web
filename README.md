@@ -1,6 +1,48 @@
-# React + TypeScript + Vite
+# SpotOn Admin Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern React admin dashboard built with TypeScript, Vite, Redux Toolkit, and Tailwind CSS. This application provides a comprehensive admin interface with role-based access control (RBAC), user management, and dynamic data tables.
+
+## Features
+
+- 🔐 **Role-Based Access Control (RBAC)** - Frontend permission system
+- 👥 **User Management** - Create, read, update, delete users
+- 🛡️ **Role Management** - Manage roles and permissions
+- 🔑 **Permission Management** - Granular permission control
+- 🏆 **Sports Management** - Manage sports entities
+- 📊 **Data Tables** - Sortable, searchable, paginated tables
+- 🎨 **Modern UI** - Clean, responsive design with Tailwind CSS
+- ⚡ **Fast Development** - Vite for lightning-fast HMR
+- 🔧 **TypeScript** - Full type safety throughout the application
+
+## Tech Stack
+
+- **Frontend**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **State Management**: Redux Toolkit
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **Routing**: React Router DOM
+- **HTTP Client**: Axios
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
+4. Open [http://localhost:5173](http://localhost:5173) in your browser
 
 Currently, two official plugins are available:
 

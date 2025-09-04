@@ -7,7 +7,7 @@ import {
   deletePermission,
 } from "../../store/slices/permissionSlice";
 import type { Permission } from "../../types";
-import { Button, DataTable, PermissionGate } from "../../components/UI";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
 import { PERMISSIONS } from "../../utils/permissions";
 
 const PermissionsPage: React.FC = () => {
@@ -25,6 +25,17 @@ const PermissionsPage: React.FC = () => {
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    permission: Permission | null;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    permission: null,
+    isLoading: false
+  });
 
   // Simple initial fetch
   React.useEffect(() => {
@@ -46,30 +57,41 @@ const PermissionsPage: React.FC = () => {
     navigate(`/permissions/${permission.id}/edit`);
   };
 
-  const handleDeletePermission = async (permission: Permission) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete permission "${permission.name}"?`
-      )
-    ) {
-      try {
-        setIsLocalLoading(true);
-        await dispatch(deletePermission(permission.id)).unwrap();
-        // Refresh the permissions list
-        await dispatch(
-          fetchPermissions({
-            page: currentPage,
-            limit: currentPageSize,
-            sort_field: sortField,
-            sort_by: sortDirection,
-            forceRefresh: true,
-          })
-        );
-      } catch (error) {
-        console.error("Failed to delete permission:", error);
-      } finally {
-        setIsLocalLoading(false);
-      }
+  const handleDeletePermission = (permission: Permission) => {
+    setDeleteModal({
+      isOpen: true,
+      permission,
+      isLoading: false
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.permission) return;
+
+    setDeleteModal(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      await dispatch(deletePermission(deleteModal.permission.id)).unwrap();
+      // Refresh the permissions list
+      await dispatch(
+        fetchPermissions({
+          page: currentPage,
+          limit: currentPageSize,
+          sort_field: sortField,
+          sort_by: sortDirection,
+          forceRefresh: true,
+        })
+      );
+      setDeleteModal({ isOpen: false, permission: null, isLoading: false });
+    } catch (error) {
+      console.error("Failed to delete permission:", error);
+      setDeleteModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (!deleteModal.isLoading) {
+      setDeleteModal({ isOpen: false, permission: null, isLoading: false });
     }
   };
 
@@ -292,7 +314,16 @@ const PermissionsPage: React.FC = () => {
         currentPage={currentPage}
         pageSize={currentPageSize}
       />
-      
+
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={handleCloseDeleteModal}
+        onConfirm={handleConfirmDelete}
+        title="Delete Permission"
+        message="Are you sure you want to delete this permission? This action cannot be undone."
+        itemName={deleteModal.permission?.name || ''}
+        isLoading={deleteModal.isLoading}
+      />
     </div>
   );
 };
