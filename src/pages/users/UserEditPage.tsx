@@ -1,17 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { updateUser, fetchUser } from '../../store/slices/userSlice';
 import { fetchRoles } from '../../store/slices/roleSlice';
+import { useToast } from '../../contexts/ToastContext';
 
 import { Card, Button, InputField, SelectField, FormSection, FormActions } from '../../components/UI';
-import { ArrowLeft, Save, X } from 'lucide-react';
+import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
 import type { UpdateUserRequest } from '../../types';
 
 const UserEditPage: React.FC = () => {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
+  const { showSuccess, showError } = useToast();
   
   const { currentUser, isLoading } = useAppSelector(state => state.users);
   const { roles } = useAppSelector(state => state.roles);
@@ -30,6 +32,28 @@ const UserEditPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSwitchingUser, setIsSwitchingUser] = useState(true); // Start as true to show loading initially
+  const previousUserId = useRef<string | undefined>(userId);
+
+  // Clear form data immediately when userId changes
+  useEffect(() => {
+    if (userId && userId !== previousUserId.current) {
+      // Clear form data immediately
+      setFormData({
+        username: '',
+        email: '',
+        full_name: {
+          first_name: '',
+          middle_name: '',
+          last_name: ''
+        },
+        role_id: undefined,
+        status: undefined
+      });
+      setIsSwitchingUser(true);
+      previousUserId.current = userId;
+    }
+  }, [userId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -45,17 +69,36 @@ const UserEditPage: React.FC = () => {
 
   useEffect(() => {
     if (currentUser) {
+      // Handle both string and object full_name formats
+      let firstName = '';
+      let middleName = '';
+      let lastName = '';
+
+      if (typeof currentUser.full_name === 'string') {
+        const nameParts = currentUser.full_name.split(' ');
+        firstName = nameParts[0] || '';
+        middleName = nameParts.slice(1, -1).join(' ') || '';
+        lastName = nameParts.slice(-1)[0] || '';
+      } else if (currentUser.full_name && typeof currentUser.full_name === 'object') {
+        firstName = currentUser.full_name.first_name || '';
+        middleName = currentUser.full_name.middle_name || '';
+        lastName = currentUser.full_name.last_name || '';
+      }
+
       setFormData({
-        username: currentUser.username || '',
+        username: currentUser.email || '',
         email: currentUser.email || '',
         full_name: {
-          first_name: currentUser.full_name?.split(' ')[0] || '',
-          middle_name: currentUser.full_name?.split(' ').slice(1, -1).join(' ') || '',
-          last_name: currentUser.full_name?.split(' ').slice(-1)[0] || ''
+          first_name: firstName,
+          middle_name: middleName,
+          last_name: lastName
         },
         role_id: currentUser.role?.id,
         status: parseInt(currentUser.status)
       });
+      
+      // Clear switching state when user data is loaded
+      setIsSwitchingUser(false);
     }
   }, [currentUser]);
 
@@ -95,7 +138,7 @@ const UserEditPage: React.FC = () => {
       // Keep full_name as object structure for API
       const apiData: UpdateUserRequest = {
         role_id: formData.role_id,
-        email: formData.email,
+        email: formData.username,
         username: formData.username,
         status: formData.status,
         full_name: {
@@ -105,13 +148,20 @@ const UserEditPage: React.FC = () => {
         }
       };
 
-      await dispatch(updateUser({ userId: parseInt(userId), userData: apiData })).unwrap();
-      navigate(`/users/${userId}`);
+      const response = await dispatch(updateUser({ userId: parseInt(userId), userData: apiData })).unwrap();
+      
+      // Show success message from API response
+      showSuccess(
+        response.message || 'User updated successfully!',
+        'User Updated'
+      );
+      
     } catch (err: unknown) {
       const errorMessage = err && typeof err === 'object' && 'message' in err 
         ? String(err.message) 
         : 'Failed to update user';
       setError(errorMessage);
+      showError(errorMessage, 'Update Failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -121,18 +171,7 @@ const UserEditPage: React.FC = () => {
     navigate(-1);
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading user information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!currentUser) {
+  if (!currentUser && !isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -164,7 +203,13 @@ const UserEditPage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Edit User</h1>
             <p className="text-gray-600">
-              Update information for {currentUser.full_name || currentUser.username}
+              Update information for {currentUser ? (
+                typeof currentUser.full_name === 'string' 
+                  ? currentUser.full_name 
+                  : currentUser.full_name 
+                    ? `${currentUser.full_name.first_name} ${currentUser.full_name.last_name}`.trim()
+                    : currentUser.username
+              ) : 'User'}
             </p>
           </div>
         </div>
@@ -172,7 +217,15 @@ const UserEditPage: React.FC = () => {
 
       {/* Edit Form */}
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {isSwitchingUser || !currentUser || (currentUser && currentUser.id !== parseInt(userId || '0')) ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-2 text-gray-600">Loading user information...</p>
+            </div>
+          </div>
+        ) : (
+          <form key={userId} onSubmit={handleSubmit} className="space-y-6">
           <FormSection title="Personal Information">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField
@@ -182,6 +235,7 @@ const UserEditPage: React.FC = () => {
                 onChange={(e) => handleInputChange('full_name.first_name', e.target.value)}
                 placeholder="First name"
                 required
+                disabled={isSwitchingUser}
               />
               <InputField
                 label="Middle Name"
@@ -189,6 +243,7 @@ const UserEditPage: React.FC = () => {
                 value={formData.full_name?.middle_name || ''}
                 onChange={(e) => handleInputChange('full_name.middle_name', e.target.value)}
                 placeholder="Middle name (optional)"
+                disabled={isSwitchingUser}
               />
               <InputField
                 label="Last Name"
@@ -197,17 +252,9 @@ const UserEditPage: React.FC = () => {
                 onChange={(e) => handleInputChange('full_name.last_name', e.target.value)}
                 placeholder="Last name"
                 required
+                disabled={isSwitchingUser}
               />
             </div>
-            
-            <InputField
-              label="Username"
-              name="username"
-              value={formData.username || ''}
-              onChange={(e) => handleInputChange('username', e.target.value)}
-              placeholder="Username"
-              required
-            />
             
             <InputField
               label="Email"
@@ -217,6 +264,7 @@ const UserEditPage: React.FC = () => {
               onChange={(e) => handleInputChange('email', e.target.value)}
               placeholder="Email address"
               required
+              disabled={isSwitchingUser}
             />
           </FormSection>
 
@@ -235,6 +283,7 @@ const UserEditPage: React.FC = () => {
                   })) || [])
                 ]}
                 required
+                disabled={isSwitchingUser}
               />
               
               <SelectField
@@ -249,6 +298,7 @@ const UserEditPage: React.FC = () => {
                   { value: '2', label: 'Email Pending' }
                 ]}
                 required
+                disabled={isSwitchingUser}
               />
             </div>
           </FormSection>
@@ -270,19 +320,20 @@ const UserEditPage: React.FC = () => {
               type="button"
               variant="secondary"
               onClick={handleCancel}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSwitchingUser}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting}
-              leftIcon={isSubmitting ? undefined : <Save className="h-4 w-4" />}
+              disabled={isSubmitting || isSwitchingUser}
+              leftIcon={isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             >
               {isSubmitting ? 'Saving...' : 'Save Changes'}
             </Button>
           </FormActions>
         </form>
+        )}
       </Card>
     </div>
   );

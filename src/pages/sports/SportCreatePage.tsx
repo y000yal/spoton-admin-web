@@ -1,14 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '../../store/hooks';
-import { createSport } from '../../store/slices/sportSlice';
 import { Button, Card } from '../../components/UI';
 import { ArrowLeft, Trophy, Upload, X } from 'lucide-react';
 import type { CreateSportRequest } from '../../types';
+import { useCreateSport } from '../../hooks/useSports';
+import { useQueryClient } from '@tanstack/react-query';
+import { useFormValidation } from '../../hooks/useFormValidation';
 
 const SportCreatePage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   
   const [formData, setFormData] = useState<CreateSportRequest>({
     name: '',
@@ -16,12 +16,26 @@ const SportCreatePage: React.FC = () => {
     status: 'active'
   });
   
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // Use the form validation hook
+  const {
+    errors,
+    validationErrors,
+    clearFieldError,
+    setClientErrors,
+    handleApiError,
+    getFieldError,
+    hasFieldError,
+  } = useFormValidation();
 
   // Ref to prevent duplicate form submissions
   const isSubmittingRef = useRef(false);
+
+  // React Query hooks
+  const createSportMutation = useCreateSport();
+  const queryClient = useQueryClient();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -31,12 +45,7 @@ const SportCreatePage: React.FC = () => {
     }));
     
     // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
+    clearFieldError(name);
   };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,19 +53,13 @@ const SportCreatePage: React.FC = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: 'Please select a valid image file'
-        }));
+        setClientErrors({ sport_image: 'Please select a valid image file' });
         return;
       }
 
       // Validate file size (5MB limit)
       if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: 'Image size must be less than 5MB'
-        }));
+        setClientErrors({ sport_image: 'Image size must be less than 5MB' });
         return;
       }
 
@@ -72,13 +75,8 @@ const SportCreatePage: React.FC = () => {
       };
       reader.readAsDataURL(file);
 
-      // Clear error
-      if (errors.sport_image) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: ''
-        }));
-      }
+      // Clear any existing validation error when user selects a valid file
+      clearFieldError('sport_image');
     }
   };
 
@@ -91,18 +89,8 @@ const SportCreatePage: React.FC = () => {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    
-    if (!formData.name.trim()) {
-      newErrors.name = 'Name is required';
-    }
-    
-    if (!formData.status) {
-      newErrors.status = 'Status is required';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Only basic validation - let backend handle detailed validation
+    return formData.name.trim().length > 0 && formData.status.length > 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -121,11 +109,27 @@ const SportCreatePage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await dispatch(createSport(formData)).unwrap();
+      await createSportMutation.mutateAsync(formData);
+      
+      // Invalidate and refetch the sports list data to ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ["sports"] });
+      
+      // Wait for the invalidation to complete and data to be refetched
+      await queryClient.refetchQueries({ queryKey: ["sports"] });
+      
+      // Only navigate after data is fully updated
       navigate('/sports');
-    } catch (error) {
-      console.error('Failed to create sport:', error);
-      setErrors({ submit: 'Failed to create sport. Please try again.' });
+    } catch (error: unknown) {
+      console.log('Error caught in handleSubmit:', error);
+      console.log('Error structure:', {
+        type: typeof error,
+        constructor: error?.constructor?.name,
+        keys: error && typeof error === 'object' ? Object.keys(error) : 'not an object',
+        hasResponse: error && typeof error === 'object' && 'response' in error,
+        response: error && typeof error === 'object' && 'response' in error ? (error as any).response : 'no response'
+      });
+      handleApiError(error);
+      console.log('After handleApiError - errors:', errors, 'validationErrors:', validationErrors);
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
@@ -169,13 +173,21 @@ const SportCreatePage: React.FC = () => {
                     value={formData.name}
                     onChange={handleInputChange}
                     className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.name ? 'border-red-500' : 'border-gray-300'
+                      hasFieldError('name') ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter sport name"
                   />
-                  {errors.name && (
-                    <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                  {getFieldError('name') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('name')}</p>
                   )}
+                  
+                  {/* Debug info */}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Debug: hasFieldError('name') = {hasFieldError('name').toString()}, 
+                    getFieldError('name') = {getFieldError('name') || 'undefined'}<br/>
+                    errors.name = {errors.name || 'undefined'}, 
+                    validationErrors.name = {validationErrors.name || 'undefined'}
+                  </div>
                 </div>
 
                 <div>
@@ -188,9 +200,14 @@ const SportCreatePage: React.FC = () => {
                     value={formData.description}
                     onChange={handleInputChange}
                     rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      hasFieldError('description') ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter sport description"
                   />
+                  {getFieldError('description') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('description')}</p>
+                  )}
                 </div>
 
                 <div>
@@ -203,14 +220,14 @@ const SportCreatePage: React.FC = () => {
                     value={formData.status}
                     onChange={handleInputChange}
                     className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      errors.status ? 'border-red-500' : 'border-gray-300'
+                      hasFieldError('status') ? 'border-red-500' : 'border-gray-300'
                     }`}
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
-                  {errors.status && (
-                    <p className="mt-1 text-sm text-red-600">{errors.status}</p>
+                  {getFieldError('status') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('status')}</p>
                   )}
                 </div>
 
@@ -229,6 +246,31 @@ const SportCreatePage: React.FC = () => {
                   >
                     Cancel
                   </Button>
+                  
+                  {/* Temporary test button */}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      const mockError = {
+                        response: {
+                          status: 422,
+                          data: {
+                            errors: {
+                              name: ['The name has already been taken.'],
+                              description: ['The description field is required when status is active.']
+                            }
+                          }
+                        }
+                      };
+                      console.log('Simulating 422 error:', mockError);
+                      handleApiError(mockError);
+                    }}
+                    className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
+                  >
+                    Test 422 Error
+                  </Button>
+                  
                   <Button
                     type="submit"
                     disabled={isSubmitting}
@@ -261,7 +303,11 @@ const SportCreatePage: React.FC = () => {
               </label>
               
               {!imagePreview ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
+                <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  hasFieldError('sport_image') 
+                    ? 'border-red-500 hover:border-red-600' 
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}>
                   <input
                     type="file"
                     id="sport_image"
@@ -289,7 +335,9 @@ const SportCreatePage: React.FC = () => {
                     <img
                       src={imagePreview}
                       alt="Sport preview"
-                      className="w-full h-64 object-cover rounded-lg border border-gray-300"
+                      className={`w-full h-64 object-cover rounded-lg border ${
+                        hasFieldError('sport_image') ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     />
                     <button
                       type="button"
@@ -310,8 +358,8 @@ const SportCreatePage: React.FC = () => {
                 </div>
               )}
               
-              {errors.sport_image && (
-                <p className="mt-2 text-sm text-red-600">{errors.sport_image}</p>
+              {getFieldError('sport_image') && (
+                <p className="mt-2 text-sm text-red-600">{getFieldError('sport_image')}</p>
               )}
             </div>
           </Card>

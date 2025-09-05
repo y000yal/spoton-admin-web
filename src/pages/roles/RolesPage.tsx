@@ -1,16 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Shield } from "lucide-react";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { fetchRoles, deleteRole } from "../../store/slices/roleSlice";
+import { Plus, Edit, Trash2, Shield, MoreVertical, Eye } from "lucide-react";
 import type { Role } from "../../types";
-import { Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
 import { PERMISSIONS } from "../../utils/permissions";
+import { useRoles, useDeleteRole } from "../../hooks/useRoles";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePermissions } from "../../hooks/usePermissionCheck";
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const { roles, isLoading } = useAppSelector((state) => state.roles);
+  const { hasPermission } = usePermissions();
 
   // Table state management
   const [searchField, setSearchField] = useState("name");
@@ -19,7 +19,13 @@ const RolesPage: React.FC = () => {
   const [currentPageSize, setCurrentPageSize] = useState(10);
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Refs to track API calls
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Loading state for refresh and search
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -32,17 +38,35 @@ const RolesPage: React.FC = () => {
     isLoading: false
   });
 
-  // Simple initial fetch
-  React.useEffect(() => {
-    dispatch(
-      fetchRoles({
-        page: 1,
-        limit: 10,
-        sort_field: "created_at",
-        sort_by: "desc",
-      })
-    );
-  }, [dispatch]);
+  // Query parameters
+  const queryParams = {
+    page: currentPage,
+    limit: currentPageSize,
+    sort_field: sortField,
+    sort_by: sortDirection,
+    ...(searchValue && { [`filter[${searchField}]`]: searchValue }),
+  };
+
+  // React Query hooks
+  const { data: roles, isLoading, isFetching, error } = useRoles(queryParams);
+  const deleteRoleMutation = useDeleteRole();
+  const queryClient = useQueryClient();
+
+  // Clear searching state when data changes
+  useEffect(() => {
+    if (roles || error) {
+      setIsSearching(false);
+    }
+  }, [roles, error]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleViewRole = (role: Role) => {
     navigate(`/roles/${role.id}`);
@@ -66,17 +90,7 @@ const RolesPage: React.FC = () => {
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await dispatch(deleteRole(deleteModal.role.id)).unwrap();
-      // Refresh the roles list
-      await dispatch(
-        fetchRoles({
-          page: currentPage,
-          limit: currentPageSize,
-          sort_field: sortField,
-          sort_by: sortDirection,
-          forceRefresh: true,
-        })
-      );
+      await deleteRoleMutation.mutateAsync(deleteModal.role.id);
       setDeleteModal({ isOpen: false, role: null, isLoading: false });
     } catch (error) {
       console.error("Failed to delete role:", error);
@@ -115,6 +129,7 @@ const RolesPage: React.FC = () => {
       key: "id",
       header: "ID",
       sortable: true,
+      hideFromSearch: true, // Hide ID from search field dropdown
       render: (_: unknown, role: Role) => role?.id || "N/A",
     },
     {
@@ -136,12 +151,6 @@ const RolesPage: React.FC = () => {
       render: (_: unknown, role: Role) => role?.description || "N/A",
     },
     {
-      key: "status",
-      header: "Status",
-      sortable: true,
-      render: (_: unknown, role: Role) => getStatusBadge(role?.status || "0"),
-    },
-    {
       key: "created_at",
       header: "Created At",
       sortable: true,
@@ -154,45 +163,39 @@ const RolesPage: React.FC = () => {
       key: "actions",
       header: "Actions",
       sortable: false,
+      hideFromSearch: true, // Hide Actions from search field dropdown
       render: (_: unknown, role: Role) => {
         if (!role) return <div>N/A</div>;
 
         return (
-          <div className="flex space-x-2">
-            <PermissionGate permission={PERMISSIONS.ROLES_SHOW}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewRole(role)}
-                className="flex items-center space-x-1"
-              >
-                <Shield className="h-4 w-4" />
-                <span>View</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.ROLES_EDIT}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditRole(role)}
-                className="flex items-center space-x-1"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.ROLES_DELETE}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDeleteRole(role)}
-                className="flex items-center space-x-1 text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete</span>
-              </Button>
+          <div className="flex justify-end relative">
+            <PermissionGate 
+              permissions={[PERMISSIONS.ROLES_SHOW, PERMISSIONS.ROLES_EDIT, PERMISSIONS.ROLES_DELETE]}
+              requireAll={false}
+              fallback={<div className="w-8 h-8"></div>}
+            >
+              <DropdownMenu
+                items={[
+                  ...(hasPermission(PERMISSIONS.ROLES_SHOW) ? [{
+                    label: 'View',
+                    icon: <Eye className="h-4 w-4" />,
+                    onClick: () => handleViewRole(role),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.ROLES_EDIT) ? [{
+                    label: 'Edit',
+                    icon: <Edit className="h-4 w-4" />,
+                    onClick: () => handleEditRole(role),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.ROLES_DELETE) ? [{
+                    label: 'Delete',
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () => handleDeleteRole(role),
+                    className: 'text-red-600 hover:text-red-700',
+                  }] : []),
+                ]}
+                trigger={<MoreVertical className="h-4 w-4" />}
+                className="overflow-visible"
+              />
             </PermissionGate>
           </div>
         );
@@ -220,95 +223,68 @@ const RolesPage: React.FC = () => {
       </div>
 
       <DataTable
-        data={roles || ([] as any)}
+        data={roles || []}
         columns={tableColumns as any}
-        isLoading={isLoading || isLocalLoading}
+        isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {
+          if (page === currentPage) return; // Prevent duplicate calls
           setCurrentPage(page);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchRoles({
-              page,
-              limit: currentPageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onPageSizeChange={(pageSize) => {
+          if (pageSize === currentPageSize) return; // Prevent duplicate calls
           setCurrentPage(1);
           setCurrentPageSize(pageSize);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchRoles({
-              page: 1,
-              limit: pageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onSort={(field, direction) => {
+          if (field === sortField && direction === sortDirection) return; // Prevent duplicate calls
           setSortField(field);
           setSortDirection(direction);
           setCurrentPage(1);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchRoles({
-              page: 1,
-              limit: currentPageSize,
-              sort_field: field,
-              sort_by: direction,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onSearch={(field, value) => {
-          setSearchField(field);
-          setSearchValue(value);
-          setCurrentPage(1);
-          setIsLocalLoading(true);
-          const params: any = {
-            page: 1,
-            limit: currentPageSize,
-            sort_field: sortField,
-            sort_by: sortDirection,
-          };
-          if (value.trim()) {
-            params[`filter[${field}]`] = value.trim();
+          // Clear previous timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
           }
-          dispatch(fetchRoles(params)).finally(() => setIsLocalLoading(false));
+          
+          // Set searching state
+          setIsSearching(true);
+          
+          // Debounce search to prevent too many API calls
+          searchTimeoutRef.current = setTimeout(() => {
+            setSearchField(field);
+            setSearchValue(value);
+            setCurrentPage(1);
+            // Don't clear searching state here - let React Query handle it
+          }, 500); // 500ms debounce
         }}
         onClearSearch={() => {
+          // Clear search timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+          }
+          
           setSearchField("name");
           setSearchValue("");
           setCurrentPage(1);
-          setSortField("created_at");
+          setSortField("id");
           setSortDirection("desc");
-          setIsLocalLoading(true);
-          dispatch(
-            fetchRoles({
-              page: 1,
-              limit: currentPageSize,
-              sort_field: "created_at",
-              sort_by: "desc",
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onRefresh={() => {
-          setIsLocalLoading(true);
-          dispatch(
-            fetchRoles({
-              page: currentPage,
-              limit: currentPageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
+          // Set refreshing state
+          setIsRefreshing(true);
+          // Reset all filters and state to default
+          setSearchValue("");
+          setCurrentPage(1);
+          setSortField("id");
+          setSortDirection("desc");
+          // Invalidate and refetch roles data with a slight delay to ensure state is updated
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['roles'] }).finally(() => {
+              setIsRefreshing(false);
+            });
+          }, 0);
         }}
-        searchField={searchField}
-        searchValue={searchValue}
         currentPage={currentPage}
         pageSize={currentPageSize}
       />

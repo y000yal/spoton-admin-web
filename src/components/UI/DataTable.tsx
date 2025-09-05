@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Search, X, Eye, EyeOff, Settings } from 'lucide-react';
 import type { PaginatedResponse } from '../../types';
 
 interface Column<T> {
@@ -9,6 +9,9 @@ interface Column<T> {
   sortable?: boolean;
   width?: string;
   searchable?: boolean;
+  visible?: boolean; // New property for column visibility
+  hideFromVisibility?: boolean; // Hide from column visibility dropdown
+  hideFromSearch?: boolean; // Hide from search field dropdown
 }
 
 interface DataTableProps<T> {
@@ -54,26 +57,55 @@ function DataTable<T extends Record<string, unknown>>({
   const paginatedData = isPaginated ? data : null;
   const tableData = isPaginated ? data.data : data;
 
-  // Get searchable columns (default to all if not specified)
-  const searchableColumns = columns.filter(col => col.searchable !== false);
+  // Get searchable columns (default to all if not specified, but exclude hidden ones)
+  const searchableColumns = columns.filter(col => 
+    col.searchable !== false && !col.hideFromSearch
+  );
+  
+  // Ensure there's at least one searchable column
+  const finalSearchableColumns = searchableColumns.length > 0 ? searchableColumns : columns.filter(col => col.searchable !== false);
 
   const [sortField, setSortField] = useState<string>('');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [localSearchField, setLocalSearchField] = useState(() => {
     if (searchField) return searchField;
-    return searchableColumns[0]?.key ? String(searchableColumns[0].key) : '';
+    return finalSearchableColumns[0]?.key ? String(finalSearchableColumns[0].key) : '';
   });
   const [localSearchValue, setLocalSearchValue] = useState(searchValue ?? '');
+  
+  // Column visibility state
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
+    new Set(columns.filter(col => col.visible !== false).map(col => String(col.key)))
+  );
+  const [showColumnMenu, setShowColumnMenu] = useState(false);
 
   // Sync local state with parent state only when parent explicitly changes
   useEffect(() => {
     if (searchField && searchField !== localSearchField) {
       setLocalSearchField(searchField);
     }
-    if (searchValue !== undefined && searchValue !== localSearchValue) {
-      setLocalSearchValue(searchValue);
+    // Only sync searchValue if it's explicitly set by parent (like from refresh)
+    if (searchValue !== undefined && searchValue === '') {
+      setLocalSearchValue('');
     }
   }, [searchField, searchValue]);
+
+  // Close column menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showColumnMenu) {
+        const target = event.target as Element;
+        if (!target.closest('.column-menu-container')) {
+          setShowColumnMenu(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showColumnMenu]);
 
   const handleSort = (field: string) => {
     if (!onSort) return;
@@ -85,20 +117,20 @@ function DataTable<T extends Record<string, unknown>>({
   };
 
   const handleSearch = () => {
-    if (onSearch) {
+    if (onSearch && localSearchValue.trim()) {
       onSearch(localSearchField, localSearchValue.trim());
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && localSearchValue.trim()) {
       handleSearch();
     }
   };
 
   const handleClearSearch = () => {
     setLocalSearchValue('');
-    setLocalSearchField(searchableColumns[0]?.key ? String(searchableColumns[0].key) : '');
+    setLocalSearchField(finalSearchableColumns[0]?.key ? String(finalSearchableColumns[0].key) : '');
     if (onClearSearch) {
       onClearSearch();
     }
@@ -106,13 +138,41 @@ function DataTable<T extends Record<string, unknown>>({
 
   const handleRefresh = () => {
     setLocalSearchValue('');
-    setLocalSearchField(searchableColumns[0]?.key ? String(searchableColumns[0].key) : '');
+    setLocalSearchField(finalSearchableColumns[0]?.key ? String(finalSearchableColumns[0].key) : '');
     if (onRefresh) {
       onRefresh();
     } else if (onClearSearch) {
       onClearSearch();
     }
   };
+
+  // Column visibility functions
+  const toggleColumnVisibility = (columnKey: string) => {
+    const newVisibleColumns = new Set(visibleColumns);
+    if (newVisibleColumns.has(columnKey)) {
+      newVisibleColumns.delete(columnKey);
+    } else {
+      newVisibleColumns.add(columnKey);
+    }
+    setVisibleColumns(newVisibleColumns);
+  };
+
+  const toggleAllColumns = () => {
+    const visibleColumnsList = columns.filter(col => !col.hideFromVisibility);
+    const visibleKeys = visibleColumnsList.map(col => String(col.key));
+    const visibleKeysSet = new Set(visibleKeys);
+    
+    if (visibleColumns.size === visibleKeysSet.size) {
+      // Hide all visible columns
+      setVisibleColumns(new Set());
+    } else {
+      // Show all visible columns
+      setVisibleColumns(visibleKeysSet);
+    }
+  };
+
+  // Filter columns based on visibility
+  const filteredColumns = columns.filter(col => visibleColumns.has(String(col.key)));
 
   const renderCell = (item: T, column: Column<T>) => {
     if (column.render) {
@@ -182,7 +242,7 @@ function DataTable<T extends Record<string, unknown>>({
               onChange={(e) => setLocalSearchField(e.target.value)}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
             >
-              {searchableColumns.map((column) => (
+              {finalSearchableColumns.map((column) => (
                 <option key={String(column.key)} value={String(column.key)}>
                   {column.header}
                 </option>
@@ -200,15 +260,19 @@ function DataTable<T extends Record<string, unknown>>({
                 onChange={(e) => setLocalSearchValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder={searchPlaceholder}
-                className="block w-full pl-10 pr-24 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md"
+                className={`block w-full pl-10 py-2 border border-gray-300 rounded-md text-sm bg-white text-gray-700 shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 hover:border-gray-400 focus:shadow-md ${
+                  localSearchValue.trim() ? 'pr-24' : 'pr-12'
+                }`}
               />
-                             {/* Search Button - Always visible */}
-               <button
-                 onClick={handleSearch}
-                 className="absolute inset-y-0 right-8 pr-3 flex items-center text-primary-600 hover:text-primary-700 text-sm font-medium hover:text-primary-800"
-               >
-                 Search
-               </button>
+                             {/* Search Button - Only show when there's text */}
+              {localSearchValue.trim() && (
+                <button
+                  onClick={handleSearch}
+                  className="absolute inset-y-0 right-8 pr-3 flex items-center text-primary-600 hover:text-primary-700 hover:text-primary-800 text-sm font-medium cursor-pointer transition-colors"
+                >
+                  Search
+                </button>
+              )}
               {/* X Button - Clear input */}
               {localSearchValue && (
                 <button
@@ -217,6 +281,54 @@ function DataTable<T extends Record<string, unknown>>({
                 >
                   <X className="h-4 w-4" />
                 </button>
+              )}
+            </div>
+
+            {/* Column Visibility Button */}
+            <div className="relative column-menu-container">
+              <button
+                onClick={() => setShowColumnMenu(!showColumnMenu)}
+                className="px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md shadow-sm transition-all duration-200 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 focus:shadow-md"
+                title="Show/Hide columns"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              
+              {/* Column Visibility Dropdown */}
+              {showColumnMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                  <div className="p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium text-gray-900">Show/Hide Columns</h3>
+                      <button
+                        onClick={toggleAllColumns}
+                        className="text-xs text-primary-600 hover:text-primary-800"
+                      >
+                        {visibleColumns.size === columns.filter(col => !col.hideFromVisibility).length ? 'Hide All' : 'Show All'}
+                      </button>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {columns
+                        .filter(column => !column.hideFromVisibility)
+                        .map((column) => (
+                        <label key={String(column.key)} className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.has(String(column.key))}
+                            onChange={() => toggleColumnVisibility(String(column.key))}
+                            className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-gray-700">{column.header}</span>
+                          {visibleColumns.has(String(column.key)) ? (
+                            <Eye className="h-4 w-4 text-gray-400" />
+                          ) : (
+                            <EyeOff className="h-4 w-4 text-gray-400" />
+                          )}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -239,7 +351,7 @@ function DataTable<T extends Record<string, unknown>>({
         <table className="w-full">
           <thead className="bg-gray-50">
             <tr>
-              {columns.map((column) => (
+              {filteredColumns.map((column) => (
                 <th
                   key={String(column.key)}
                   className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${
@@ -258,14 +370,14 @@ function DataTable<T extends Record<string, unknown>>({
           <tbody className="bg-white divide-y divide-gray-200">
             {tableData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={filteredColumns.length} className="px-6 py-12 text-center text-gray-500">
                   No data found
                 </td>
               </tr>
             ) : (
               tableData.map((item, index) => (
                 <tr key={index} className="hover:bg-gray-50">
-                  {columns.map((column) => (
+                  {filteredColumns.map((column) => (
                     <td key={String(column.key)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {renderCell(item, column)}
                     </td>

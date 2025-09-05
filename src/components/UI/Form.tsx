@@ -1,6 +1,7 @@
 import React from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { clsx } from 'clsx';
+import { getFieldError } from '../../utils/validationErrorHandler';
 
 // Input Field Component
 export interface InputFieldProps {
@@ -13,6 +14,7 @@ export interface InputFieldProps {
   required?: boolean;
   disabled?: boolean;
   error?: string;
+  validationErrors?: Record<string, string>;
   className?: string;
   icon?: React.ReactNode;
   leftIcon?: React.ReactNode;
@@ -29,6 +31,7 @@ export const InputField: React.FC<InputFieldProps> = ({
   placeholder,
   required = false,
   error,
+  validationErrors,
   disabled = false,
   className = '',
   icon,
@@ -40,6 +43,9 @@ export const InputField: React.FC<InputFieldProps> = ({
   const inputType = type === 'password' && showPassword ? 'text' : type;
   const hasLeftIcon = leftIcon || icon;
   const hasRightIcon = rightIcon || showPasswordToggle;
+  
+  // Get field error from validation errors or use direct error prop
+  const fieldError = error || (validationErrors ? getFieldError(validationErrors, name) : undefined);
 
   return (
     <div className={className}>
@@ -68,7 +74,7 @@ export const InputField: React.FC<InputFieldProps> = ({
             input-field
             ${hasLeftIcon ? 'pl-10' : ''}
             ${hasRightIcon ? 'pr-10' : ''}
-            ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}
+            ${fieldError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}
             ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
           `}
         />
@@ -91,8 +97,8 @@ export const InputField: React.FC<InputFieldProps> = ({
           </button>
         )}
       </div>
-      {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+      {fieldError && (
+        <p className="mt-1 text-sm text-red-600">{fieldError}</p>
       )}
     </div>
   );
@@ -114,6 +120,7 @@ export interface SelectFieldProps {
   required?: boolean;
   disabled?: boolean;
   error?: string;
+  validationErrors?: Record<string, string>;
   className?: string;
 }
 
@@ -127,8 +134,11 @@ export const SelectField: React.FC<SelectFieldProps> = ({
   required = false,
   disabled = false,
   error,
+  validationErrors,
   className = '',
 }) => {
+  // Get field error from validation errors or use direct error prop
+  const fieldError = error || (validationErrors ? getFieldError(validationErrors, name) : undefined);
   return (
     <div className={className}>
       <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
@@ -146,7 +156,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
           'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm',
           'focus:outline-none focus:ring-primary-500 focus:border-primary-500',
           'disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed',
-          error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : '',
+          fieldError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : '',
           className
         )}
       >
@@ -161,7 +171,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
           </option>
         ))}
       </select>
-      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
+      {fieldError && <p className="mt-1 text-sm text-red-600">{fieldError}</p>}
     </div>
   );
 };
@@ -175,6 +185,7 @@ interface TextareaFieldProps {
   placeholder?: string;
   required?: boolean;
   error?: string;
+  validationErrors?: Record<string, string>;
   disabled?: boolean;
   rows?: number;
   className?: string;
@@ -188,10 +199,13 @@ export const TextareaField: React.FC<TextareaFieldProps> = ({
   placeholder,
   required = false,
   error,
+  validationErrors,
   disabled = false,
   rows = 4,
   className = '',
 }) => {
+  // Get field error from validation errors or use direct error prop
+  const fieldError = error || (validationErrors ? getFieldError(validationErrors, name) : undefined);
   return (
     <div className={className}>
       {label && (
@@ -212,12 +226,12 @@ export const TextareaField: React.FC<TextareaFieldProps> = ({
         className={`
           input-field
           resize-vertical
-          ${error ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}
+          ${fieldError ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''}
           ${disabled ? 'bg-gray-50 cursor-not-allowed' : ''}
         `}
       />
-      {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+      {fieldError && (
+        <p className="mt-1 text-sm text-red-600">{fieldError}</p>
       )}
     </div>
   );

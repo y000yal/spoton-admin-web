@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { createRole } from '../../store/slices/roleSlice';
-import { fetchAllPermissionsForRoles } from '../../store/slices/permissionSlice';
-import { roleService } from '../../services/api';
-
 import { Card, Button, InputField, TextareaField, FormSection, FormActions } from '../../components/UI';
 import GroupedPermissionsList from '../../components/GroupedPermissionsList';
 import { ArrowLeft, Save, X, Key, RefreshCw } from 'lucide-react';
 import type { CreateRoleRequest } from '../../types';
+import { useCreateRole } from '../../hooks/useRoles';
+import { usePermissions } from '../../hooks/usePermissions';
+import { useQueryClient } from '@tanstack/react-query';
 
 const RoleCreatePage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   
-  const { permissions } = useAppSelector(state => state.permissions);
+  // React Query hooks
+  const createRoleMutation = useCreateRole();
+  const { data: permissionsData } = usePermissions({ page: 1, limit: 1000 });
+  const permissions = permissionsData?.data || [];
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<CreateRoleRequest>({
     name: '',
@@ -25,20 +26,12 @@ const RoleCreatePage: React.FC = () => {
 
   // Permission assignment state
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(false);
   const [savingPermissions, setSavingPermissions] = useState(false);
-  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load permissions for role creation - always fetch all permissions
-  useEffect(() => {
-    // Always fetch all permissions for role creation to ensure we have complete data
-    // This prevents issues when coming from permissions list page which has limited permissions
-    dispatch(fetchAllPermissionsForRoles());
-    setPermissionsLoaded(true);
-  }, [dispatch]);
+  // Permissions are loaded via React Query hook above
 
   // Handle permission toggle
   const handlePermissionToggle = (permissionId: number) => {
@@ -76,16 +69,22 @@ const RoleCreatePage: React.FC = () => {
     setError(null);
 
     try {
-      // Create the role first
-      const newRole = await dispatch(createRole(formData)).unwrap();
+      // Create the role first using React Query
+      const newRole = await createRoleMutation.mutateAsync(formData);
       
       // If permissions are selected, save them for the new role
       if (selectedPermissions.length > 0) {
         await handleSavePermissions(newRole.id);
       }
       
-      // Navigate to edit page for the newly created role
-      navigate(`/roles/${newRole.id}/edit`);
+      // Invalidate and refetch the roles list data to ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ["roles"] });
+      
+      // Wait for the invalidation to complete and data to be refetched
+      await queryClient.refetchQueries({ queryKey: ["roles"] });
+      
+      // Only navigate after data is fully updated
+      navigate('/roles');
     } catch (err: any) {
       setError(err.message || 'Failed to create role');
     } finally {
@@ -217,15 +216,15 @@ const RoleCreatePage: React.FC = () => {
                 </div>
 
                 <GroupedPermissionsList
-                  permissions={permissions?.data || []}
+                  permissions={permissions}
                   selectedPermissions={selectedPermissions}
                   onPermissionToggle={handlePermissionToggle}
                   onSelectAll={() => {
-                    const allPermissionIds = (permissions?.data || []).map((p: any) => p.id);
+                    const allPermissionIds = permissions.map((p: any) => p.id);
                     setSelectedPermissions(allPermissionIds);
                   }}
                   onRemoveAll={() => setSelectedPermissions([])}
-                  isLoading={permissionsLoading}
+                  isLoading={!permissionsData}
                   showSelectAllButtons={true}
                 />
               </div>
@@ -234,7 +233,7 @@ const RoleCreatePage: React.FC = () => {
             <div className="pt-4 border-t border-gray-200">
               <div className="text-sm text-gray-600 text-center">
                 <p>Permissions will be automatically assigned when the role is created.</p>
-                <p className="mt-1">After creation, you'll be redirected to edit the role for further customization.</p>
+                <p className="mt-1">After creation, you'll be redirected to the roles list page.</p>
               </div>
             </div>
           </div>

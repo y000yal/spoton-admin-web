@@ -45,10 +45,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check if user can access the current route
   const canAccess = canAccessRoute(user, location.pathname);
-  
+
   // Also check specific required permissions if provided
   const hasRequiredPermissions = requiredPermissions.length === 0 || 
     requiredPermissions.some(permission => {
+     
       if (!user || !user.role || !user.role.permissions) {
         return false;
       }

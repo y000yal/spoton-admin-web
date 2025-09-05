@@ -1,6 +1,5 @@
 import { BaseApiService } from './base';
 import type { AuthResponse, LoginCredentials, User } from '../../types';
-import { jwtDecode } from 'jwt-decode';
 
 export class AuthService extends BaseApiService {
   // Authentication methods
@@ -38,31 +37,42 @@ export class AuthService extends BaseApiService {
     }
 
     try {
-      // Decode the JWT token to get user information
-      const decodedToken = jwtDecode(token) as { sub?: string; user_id?: number; id?: number };
+      // Use the /users/v1/me endpoint to get current user data
+      const response = await this.api.get<User>('/users/v1/me');
+      const userResponse = response.data;
       
-      // Try different possible field names for user ID
-      const userId = decodedToken.user_id || decodedToken.id || decodedToken.sub;
-      
-      if (!userId) {
-        throw new Error('Could not extract user ID from token');
+      // If user has a role_id, fetch the role with permissions
+      if (userResponse.role_id) {
+        const { roleService } = await import('./roles');
+        const [roleResponse, permissionsResponse] = await Promise.all([
+          roleService.getRole(userResponse.role_id),
+          roleService.getRolePermissions(userResponse.role_id)
+        ]);
+        
+        // Return user with complete role and permissions data
+        return {
+          ...userResponse,
+          role: {
+            ...roleResponse,
+            permissions: permissionsResponse.permissions || permissionsResponse.data || permissionsResponse
+          }
+        };
       }
-
-      // Fetch the complete user data using the ID
-      const { userService } = await import('./users');
-      const response = await userService.getUser(Number(userId));
-      return response;
+      
+      return userResponse;
     } catch (error) {
       console.error('Failed to get current user:', error);
       throw new Error('Failed to get current user data');
     }
   }
 
-  logout(): void {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
+  // Refresh current user data (useful when permissions change)
+  async refreshCurrentUser(): Promise<User> {
+    const user = await this.getCurrentUser();
+    localStorage.setItem('user', JSON.stringify(user));
+    return user;
   }
+
 }
 
 export const authService = new AuthService();

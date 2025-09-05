@@ -1,21 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Key } from "lucide-react";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  fetchPermissions,
-  deletePermission,
-} from "../../store/slices/permissionSlice";
+import { Plus, Edit, Trash2, Key, MoreVertical, Eye } from "lucide-react";
 import type { Permission } from "../../types";
-import { Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
 import { PERMISSIONS } from "../../utils/permissions";
+import { usePermissions, useDeletePermission } from "../../hooks/usePermissions";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePermissions as usePermissionCheck } from "../../hooks/usePermissionCheck";
 
 const PermissionsPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const { permissions, isLoading } = useAppSelector(
-    (state) => state.permissions
-  );
+  const { hasPermission } = usePermissionCheck();
 
   // Table state management
   const [searchField, setSearchField] = useState("name");
@@ -24,7 +19,13 @@ const PermissionsPage: React.FC = () => {
   const [currentPageSize, setCurrentPageSize] = useState(10);
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Refs to track API calls
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Loading state for refresh and search
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -37,17 +38,35 @@ const PermissionsPage: React.FC = () => {
     isLoading: false
   });
 
-  // Simple initial fetch
-  React.useEffect(() => {
-    dispatch(
-      fetchPermissions({
-        page: 1,
-        limit: 10,
-        sort_field: "created_at",
-        sort_by: "desc",
-      })
-    );
-  }, [dispatch]);
+  // Query parameters
+  const queryParams = {
+    page: currentPage,
+    limit: currentPageSize,
+    sort_field: sortField,
+    sort_by: sortDirection,
+    ...(searchValue && { [`filter[${searchField}]`]: searchValue }),
+  };
+
+  // React Query hooks
+  const { data: permissions, isLoading, isFetching, error } = usePermissions(queryParams);
+  const deletePermissionMutation = useDeletePermission();
+  const queryClient = useQueryClient();
+
+  // Clear searching state when data changes
+  useEffect(() => {
+    if (permissions || error) {
+      setIsSearching(false);
+    }
+  }, [permissions, error]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleViewPermission = (permission: Permission) => {
     navigate(`/permissions/${permission.id}`);
@@ -71,17 +90,7 @@ const PermissionsPage: React.FC = () => {
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await dispatch(deletePermission(deleteModal.permission.id)).unwrap();
-      // Refresh the permissions list
-      await dispatch(
-        fetchPermissions({
-          page: currentPage,
-          limit: currentPageSize,
-          sort_field: sortField,
-          sort_by: sortDirection,
-          forceRefresh: true,
-        })
-      );
+      await deletePermissionMutation.mutateAsync(deleteModal.permission.id);
       setDeleteModal({ isOpen: false, permission: null, isLoading: false });
     } catch (error) {
       console.error("Failed to delete permission:", error);
@@ -120,6 +129,7 @@ const PermissionsPage: React.FC = () => {
       key: "id",
       header: "ID",
       sortable: true,
+      hideFromSearch: true, // Hide ID from search field dropdown
       render: (_: unknown, permission: Permission) => permission?.id || "N/A",
     },
     {
@@ -154,45 +164,39 @@ const PermissionsPage: React.FC = () => {
       key: "actions",
       header: "Actions",
       sortable: false,
+      hideFromSearch: true, // Hide Actions from search field dropdown
       render: (_: unknown, permission: Permission) => {
         if (!permission) return <div>N/A</div>;
 
         return (
-          <div className="flex space-x-2">
-            <PermissionGate permission={PERMISSIONS.PERMISSIONS_SHOW}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewPermission(permission)}
-                className="flex items-center space-x-1"
-              >
-                <Key className="h-4 w-4" />
-                <span>View</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.PERMISSIONS_EDIT}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditPermission(permission)}
-                className="flex items-center space-x-1"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.PERMISSIONS_DELETE}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDeletePermission(permission)}
-                className="flex items-center space-x-1 text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete</span>
-              </Button>
+          <div className="flex justify-end relative">
+            <PermissionGate 
+              permissions={[PERMISSIONS.PERMISSIONS_SHOW, PERMISSIONS.PERMISSIONS_EDIT, PERMISSIONS.PERMISSIONS_DELETE]}
+              requireAll={false}
+              fallback={<div className="w-8 h-8"></div>}
+            >
+              <DropdownMenu
+                items={[
+                  ...(hasPermission(PERMISSIONS.PERMISSIONS_SHOW) ? [{
+                    label: 'View',
+                    icon: <Eye className="h-4 w-4" />,
+                    onClick: () => handleViewPermission(permission),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.PERMISSIONS_EDIT) ? [{
+                    label: 'Edit',
+                    icon: <Edit className="h-4 w-4" />,
+                    onClick: () => handleEditPermission(permission),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.PERMISSIONS_DELETE) ? [{
+                    label: 'Delete',
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () => handleDeletePermission(permission),
+                    className: 'text-red-600 hover:text-red-700',
+                  }] : []),
+                ]}
+                trigger={<MoreVertical className="h-4 w-4" />}
+                className="overflow-visible"
+              />
             </PermissionGate>
           </div>
         );
@@ -220,97 +224,68 @@ const PermissionsPage: React.FC = () => {
       </div>
 
       <DataTable
-        data={permissions || ([] as any)}
+        data={permissions || []}
         columns={tableColumns as any}
-        isLoading={isLoading || isLocalLoading}
+        isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {
+          if (page === currentPage) return; // Prevent duplicate calls
           setCurrentPage(page);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchPermissions({
-              page,
-              limit: currentPageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onPageSizeChange={(pageSize) => {
+          if (pageSize === currentPageSize) return; // Prevent duplicate calls
           setCurrentPage(1);
           setCurrentPageSize(pageSize);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchPermissions({
-              page: 1,
-              limit: pageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onSort={(field, direction) => {
+          if (field === sortField && direction === sortDirection) return; // Prevent duplicate calls
           setSortField(field);
           setSortDirection(direction);
           setCurrentPage(1);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchPermissions({
-              page: 1,
-              limit: currentPageSize,
-              sort_field: field,
-              sort_by: direction,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onSearch={(field, value) => {
-          setSearchField(field);
-          setSearchValue(value);
-          setCurrentPage(1);
-          setIsLocalLoading(true);
-          const params: any = {
-            page: 1,
-            limit: currentPageSize,
-            sort_field: sortField,
-            sort_by: sortDirection,
-          };
-          if (value.trim()) {
-            params[`filter[${field}]`] = value.trim();
+          // Clear previous timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
           }
-          dispatch(fetchPermissions(params)).finally(() =>
-            setIsLocalLoading(false)
-          );
+          
+          // Set searching state
+          setIsSearching(true);
+          
+          // Debounce search to prevent too many API calls
+          searchTimeoutRef.current = setTimeout(() => {
+            setSearchField(field);
+            setSearchValue(value);
+            setCurrentPage(1);
+            // Don't clear searching state here - let React Query handle it
+          }, 500); // 500ms debounce
         }}
         onClearSearch={() => {
+          // Clear search timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+          }
+          
           setSearchField("name");
           setSearchValue("");
           setCurrentPage(1);
-          setSortField("created_at");
+          setSortField("id");
           setSortDirection("desc");
-          setIsLocalLoading(true);
-          dispatch(
-            fetchPermissions({
-              page: 1,
-              limit: currentPageSize,
-              sort_field: "created_at",
-              sort_by: "desc",
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onRefresh={() => {
-          setIsLocalLoading(true);
-          dispatch(
-            fetchPermissions({
-              page: currentPage,
-              limit: currentPageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
+          // Set refreshing state
+          setIsRefreshing(true);
+          // Reset all filters and state to default
+          setSearchValue("");
+          setCurrentPage(1);
+          setSortField("id");
+          setSortDirection("desc");
+          // Invalidate and refetch permissions data with a slight delay to ensure state is updated
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['permissions'] }).finally(() => {
+              setIsRefreshing(false);
+            });
+          }, 0);
         }}
-        searchField={searchField}
-        searchValue={searchValue}
         currentPage={currentPage}
         pageSize={currentPageSize}
       />

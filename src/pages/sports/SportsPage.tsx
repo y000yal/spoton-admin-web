@@ -5,25 +5,25 @@ import {
   Edit,
   Trash2,
   Trophy,
+  MoreVertical,
+  Eye,
 } from "lucide-react";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  fetchSports,
-  deleteSport,
-} from "../../store/slices/sportSlice";
 import type { Sport } from "../../types";
 import {
   Button,
   DataTable,
   PermissionGate,
   DeleteConfirmationModal,
+  DropdownMenu,
 } from "../../components/UI";
 import { PERMISSIONS } from "../../utils/permissions";
+import { useSports, useDeleteSport } from "../../hooks/useSports";
+import { useQueryClient } from "@tanstack/react-query";
+import { usePermissions } from "../../hooks/usePermissionCheck";
 
 const SportsPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
-  const { sports, isLoading } = useAppSelector((state) => state.sports);
+  const { hasPermission } = usePermissions();
 
   // Table state management
   const [searchField, setSearchField] = useState("name");
@@ -32,7 +32,6 @@ const SportsPage: React.FC = () => {
   const [currentPageSize, setCurrentPageSize] = useState(10);
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -46,16 +45,32 @@ const SportsPage: React.FC = () => {
   });
 
   // Refs to track API calls
-  const initialFetchRef = useRef(false);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Loading state for refresh and search
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
-  // Initial fetch - only once
+  // Query parameters
+  const queryParams = {
+    page: currentPage,
+    limit: currentPageSize,
+    sort_field: sortField,
+    sort_by: sortDirection,
+    ...(searchValue && { [`filter[${searchField}]`]: searchValue }),
+  };
+
+  // React Query hooks
+  const { data: sports, isLoading, isFetching, error } = useSports(queryParams);
+  const deleteSportMutation = useDeleteSport();
+  const queryClient = useQueryClient();
+
+  // Clear searching state when data changes
   useEffect(() => {
-    if (!initialFetchRef.current) {
-      initialFetchRef.current = true;
-      dispatch(fetchSports({ page: 1, limit: 10, sort_field: 'name', sort_by: 'desc' }));
+    if (sports || error) {
+      setIsSearching(false);
     }
-  }, [dispatch]);
+  }, [sports, error]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -88,12 +103,9 @@ const SportsPage: React.FC = () => {
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await dispatch(deleteSport(deleteModal.sport.id)).unwrap();
-      // Refresh the sports list
-      await dispatch(fetchSports({ page: currentPage, limit: currentPageSize, sort_field: sortField, sort_by: sortDirection, forceRefresh: true }));
+      await deleteSportMutation.mutateAsync(deleteModal.sport.id);
       setDeleteModal({ isOpen: false, sport: null, isLoading: false });
     } catch (error) {
-      console.error('Failed to delete sport:', error);
       setDeleteModal(prev => ({ ...prev, isLoading: false }));
     }
   };
@@ -124,6 +136,7 @@ const SportsPage: React.FC = () => {
       key: 'id',
       header: 'ID',
       sortable: true,
+      hideFromSearch: true, // Hide ID from search field dropdown
       render: (_: unknown, sport: Sport) => sport?.id || 'N/A'
     },
     {
@@ -136,6 +149,7 @@ const SportsPage: React.FC = () => {
       key: 'sport_image',
       header: 'Image',
       sortable: false,
+      hideFromSearch: true,
       render: (_: unknown, sport: Sport) => {
         if (sport?.media_url) {
           return (
@@ -165,45 +179,39 @@ const SportsPage: React.FC = () => {
       key: 'actions',
       header: 'Actions',
       sortable: false,
+      hideFromSearch: true, // Hide Actions from search field dropdown
       render: (_: unknown, sport: Sport) => {
         if (!sport) return <div>N/A</div>;
         
         return (
-          <div className="flex space-x-2">
-            <PermissionGate permission={PERMISSIONS.SPORTS_SHOW}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewSport(sport)}
-                className="flex items-center space-x-1"
-              >
-                <Trophy className="h-4 w-4" />
-                <span>View</span>
-              </Button>
-            </PermissionGate>
-            
-            <PermissionGate permission={PERMISSIONS.SPORTS_EDIT}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditSport(sport)}
-                className="flex items-center space-x-1"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit</span>
-              </Button>
-            </PermissionGate>
-            
-            <PermissionGate permission={PERMISSIONS.SPORTS_DELETE}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDeleteSport(sport)}
-                className="flex items-center space-x-1 text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete</span>
-              </Button>
+          <div className="flex justify-end relative">
+            <PermissionGate 
+              permissions={[PERMISSIONS.SPORTS_SHOW, PERMISSIONS.SPORTS_EDIT, PERMISSIONS.SPORTS_DELETE]}
+              requireAll={false}
+              fallback={<div className="w-8 h-8"></div>}
+            >
+              <DropdownMenu
+                items={[
+                  ...(hasPermission(PERMISSIONS.SPORTS_SHOW) ? [{
+                    label: 'View',
+                    icon: <Eye className="h-4 w-4" />,
+                    onClick: () => handleViewSport(sport),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.SPORTS_EDIT) ? [{
+                    label: 'Edit',
+                    icon: <Edit className="h-4 w-4" />,
+                    onClick: () => handleEditSport(sport),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.SPORTS_DELETE) ? [{
+                    label: 'Delete',
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () => handleDeleteSport(sport),
+                    className: 'text-red-600 hover:text-red-700',
+                  }] : []),
+                ]}
+                trigger={<MoreVertical className="h-4 w-4" />}
+                className="overflow-visible"
+              />
             </PermissionGate>
           </div>
         );
@@ -231,32 +239,23 @@ const SportsPage: React.FC = () => {
       </div>
 
       <DataTable
-        data={sports || ([] as any)}
+        data={sports || []}
         columns={tableColumns as any}
-        isLoading={isLoading || isLocalLoading}
+        isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {
           if (page === currentPage) return; // Prevent duplicate calls
           setCurrentPage(page);
-          setIsLocalLoading(true);
-          dispatch(fetchSports({ page, limit: currentPageSize, sort_field: sortField, sort_by: sortDirection }))
-            .finally(() => setIsLocalLoading(false));
         }}
         onPageSizeChange={(pageSize) => {
           if (pageSize === currentPageSize) return; // Prevent duplicate calls
           setCurrentPage(1);
           setCurrentPageSize(pageSize);
-          setIsLocalLoading(true);
-          dispatch(fetchSports({ page: 1, limit: pageSize, sort_field: sortField, sort_by: sortDirection }))
-            .finally(() => setIsLocalLoading(false));
         }}
         onSort={(field, direction) => {
           if (field === sortField && direction === sortDirection) return; // Prevent duplicate calls
           setSortField(field);
           setSortDirection(direction);
           setCurrentPage(1);
-          setIsLocalLoading(true);
-          dispatch(fetchSports({ page: 1, limit: currentPageSize, sort_field: field, sort_by: direction }))
-            .finally(() => setIsLocalLoading(false));
         }}
         onSearch={(field, value) => {
           // Clear previous timeout
@@ -264,18 +263,15 @@ const SportsPage: React.FC = () => {
             clearTimeout(searchTimeoutRef.current);
           }
           
+          // Set searching state
+          setIsSearching(true);
+          
           // Debounce search to prevent too many API calls
           searchTimeoutRef.current = setTimeout(() => {
             setSearchField(field);
             setSearchValue(value);
             setCurrentPage(1);
-            setIsLocalLoading(true);
-            const params: any = { page: 1, limit: currentPageSize, sort_field: sortField, sort_by: sortDirection };
-            if (value.trim()) {
-              params[`filter[${field}]`] = value.trim();
-            }
-            dispatch(fetchSports(params))
-              .finally(() => setIsLocalLoading(false));
+            // Don't clear searching state here - let React Query handle it
           }, 500); // 500ms debounce
         }}
         onClearSearch={() => {
@@ -287,19 +283,24 @@ const SportsPage: React.FC = () => {
           setSearchField("name");
           setSearchValue("");
           setCurrentPage(1);
-          setSortField("name");
+          setSortField("id");
           setSortDirection("desc");
-          setIsLocalLoading(true);
-          dispatch(fetchSports({ page: 1, limit: currentPageSize, sort_field: 'name', sort_by: 'desc', forceRefresh: true }))
-            .finally(() => setIsLocalLoading(false));
         }}
         onRefresh={() => {
-          setIsLocalLoading(true);
-          dispatch(fetchSports({ page: currentPage, limit: currentPageSize, sort_field: sortField, sort_by: sortDirection, forceRefresh: true }))
-            .finally(() => setIsLocalLoading(false));
+          // Set refreshing state
+          setIsRefreshing(true);
+          // Reset all filters and state to default
+          setSearchValue("");
+          setCurrentPage(1);
+          setSortField("id");
+          setSortDirection("desc");
+          // Invalidate and refetch sports data with a slight delay to ensure state is updated
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['sports'] }).finally(() => {
+              setIsRefreshing(false);
+            });
+          }, 0);
         }}
-        searchField={searchField}
-        searchValue={searchValue}
         currentPage={currentPage}
         pageSize={currentPageSize}
       />

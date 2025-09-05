@@ -17,6 +17,7 @@ export { default as Toast } from './Toast';
 export { default as ToastContainer } from './ToastContainer';
 export { default as SearchBar } from './SearchBar';
 export { DeleteConfirmationModal } from './DeleteConfirmationModal';
+export { default as DropdownMenu } from './DropdownMenu';
 
 // Permission and Route components
 export { default as ProtectedRoute } from '../ProtectedRoute';

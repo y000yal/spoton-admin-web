@@ -1,25 +1,37 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchPermission } from '../../store/slices/permissionSlice';
 import { Button, Card } from '../../components/UI';
 import { ArrowLeft, Shield, Edit, Trash2 } from 'lucide-react';
 import { PermissionGate } from '../../components/UI';
 import { PERMISSIONS } from '../../utils/permissions';
+import { usePermission, useDeletePermission } from '../../hooks/usePermissions';
+import { useQueryClient } from '@tanstack/react-query';
 
 const PermissionDetailPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { permissionId } = useParams<{ permissionId: string }>();
   
-  const { currentPermission, isLoading } = useAppSelector((state) => state.permissions);
+  // Parse permissionId and validate
+  const parsedPermissionId = parseInt(permissionId || '0');
+  
+  // Validate permissionId
+  if (!permissionId || isNaN(parsedPermissionId) || parsedPermissionId <= 0) {
+    return (
+      <div className="text-center py-12">
+        <Shield className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Invalid Permission ID</h3>
+        <p className="mt-1 text-sm text-gray-500">The permission ID is invalid or missing.</p>
+        <div className="mt-6">
+          <Button onClick={() => navigate("/permissions")}>Back to Permissions</Button>
+        </div>
+      </div>
+    );
+  }
 
-  // Fetch permission data when component mounts
-  useEffect(() => {
-    if (permissionId) {
-      dispatch(fetchPermission(parseInt(permissionId)));
-    }
-  }, [dispatch, permissionId]);
+  // React Query hooks
+  const { data: currentPermission, isLoading, error } = usePermission(parsedPermissionId);
+  const deletePermissionMutation = useDeletePermission();
+  const queryClient = useQueryClient();
 
   const handleEdit = () => {
     if (permissionId) {
@@ -30,8 +42,13 @@ const PermissionDetailPage: React.FC = () => {
   const handleDelete = async () => {
     if (currentPermission && window.confirm(`Are you sure you want to delete permission "${currentPermission.name}"?`)) {
       try {
-        // You can add delete functionality here if needed
-        console.log('Delete permission:', currentPermission.id);
+        await deletePermissionMutation.mutateAsync(currentPermission.id);
+        
+        // Invalidate and refetch the permissions list data BEFORE navigation
+        await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+        await queryClient.refetchQueries({ queryKey: ["permissions"] });
+        
+        // Navigate after ensuring fresh data is available
         navigate('/permissions');
       } catch (error) {
         console.error('Failed to delete permission:', error);

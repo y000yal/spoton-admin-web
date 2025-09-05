@@ -1,18 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { createUser } from '../../store/slices/userSlice';
-import { fetchRoles } from '../../store/slices/roleSlice';
+import { useCreateUser } from '../../hooks/useUsers';
+import { useRoles } from '../../hooks/useRoles';
+import { useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../../contexts/ToastContext';
 
 import { Card, Button, InputField, SelectField, FormSection, FormActions } from '../../components/UI';
-import { ArrowLeft, User as UserIcon, Save, X } from 'lucide-react';
+import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
 import type { CreateUserRequest } from '../../types';
 
 const UserCreatePage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
+  const { showSuccess, showError } = useToast();
   
-  const { roles } = useAppSelector(state => state.roles);
+  // React Query hooks
+  const createUserMutation = useCreateUser();
+  const { data: rolesData } = useRoles({ page: 1, limit: 100 });
+  const roles = rolesData?.data || [];
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<CreateUserRequest>({
     username: '',
@@ -29,13 +34,8 @@ const UserCreatePage: React.FC = () => {
     mobile_no: 0
   });
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    dispatch(fetchRoles({ page: 1, limit: 100 }));
-  }, [dispatch]);
 
   const handleInputChange = (field: string, value: string | number) => {
     if (field.includes('.')) {
@@ -43,7 +43,7 @@ const UserCreatePage: React.FC = () => {
       setFormData(prev => ({
         ...prev,
         [parent]: {
-          ...prev[parent as keyof CreateUserRequest],
+          ...(prev[parent as keyof CreateUserRequest] as Record<string, unknown>),
           [child]: value
         }
       }));
@@ -63,34 +63,55 @@ const UserCreatePage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    setIsSubmitting(true);
     setError(null);
     setFieldErrors({});
 
     try {
-      await dispatch(createUser(formData)).unwrap();
-      navigate('/users');
-    } catch (err: any) {
-      if (err?.response?.status === 422) {
-        const errorData = err.response.data;
-        if (errorData?.message && typeof errorData.message === 'object') {
-          const newFieldErrors: Record<string, string> = {};
-          Object.entries(errorData.message).forEach(([field, messages]) => {
-            if (Array.isArray(messages)) {
-              newFieldErrors[field] = messages.join(', ');
-            } else {
-              newFieldErrors[field] = String(messages);
-            }
-          });
-          setFieldErrors(newFieldErrors);
+      const response = await createUserMutation.mutateAsync(formData);
+      
+      // Show success message from API response
+      showSuccess(
+        response.message || 'User created successfully!',
+        'User Created'
+      );
+      
+      // Invalidate and refetch the users list data to ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ["users"] });
+      
+      // Wait for the invalidation to complete and data to be refetched
+      await queryClient.refetchQueries({ queryKey: ["users"] });
+      
+      // Navigate after a short delay to show the success message
+      setTimeout(() => {
+        navigate('/users');
+      }, 1500);
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { status?: number; data?: unknown } };
+        if (axiosError.response?.status === 422) {
+          const errorData = axiosError.response.data as { message?: Record<string, unknown> };
+          if (errorData?.message && typeof errorData.message === 'object') {
+            const newFieldErrors: Record<string, string> = {};
+            Object.entries(errorData.message).forEach(([field, messages]) => {
+              if (Array.isArray(messages)) {
+                newFieldErrors[field] = messages.join(', ');
+              } else {
+                newFieldErrors[field] = String(messages);
+              }
+            });
+            setFieldErrors(newFieldErrors);
+          } else {
+            setError('Validation failed. Please check your input.');
+            showError('Validation failed. Please check your input.', 'Validation Error');
+          }
         } else {
-          setError('Validation failed. Please check your input.');
+          setError('Failed to create user');
+          showError('Failed to create user', 'Creation Failed');
         }
       } else {
-        setError(err.message || 'Failed to create user');
+        setError('Failed to create user');
+        showError('Failed to create user', 'Creation Failed');
       }
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -121,7 +142,7 @@ const UserCreatePage: React.FC = () => {
       {/* Create Form */}
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
-          <FormSection title="Personal Information" icon={<UserIcon className="w-5 h-5" />}>
+          <FormSection title="Personal Information">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField
                 label="First Name"
@@ -175,7 +196,7 @@ const UserCreatePage: React.FC = () => {
             </div>
           </FormSection>
 
-          <FormSection title="Account Settings" icon={<UserIcon className="w-5 h-5" />}>
+          <FormSection title="Account Settings">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField
                 label="Password"
@@ -208,7 +229,7 @@ const UserCreatePage: React.FC = () => {
                 onChange={(e) => handleInputChange('role_id', parseInt(e.target.value))}
                 options={[
                   { value: '', label: 'Select a role' },
-                  ...(roles?.data?.map(role => ({
+                  ...(roles?.map(role => ({
                     value: role.id.toString(),
                     label: role.display_name || role.name
                   })) || [])
@@ -257,16 +278,16 @@ const UserCreatePage: React.FC = () => {
               type="button"
               variant="secondary"
               onClick={handleCancel}
-              disabled={isSubmitting}
+              disabled={createUserMutation.isPending}
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting}
-              leftIcon={isSubmitting ? undefined : <Save className="h-4 w-4" />}
+              disabled={createUserMutation.isPending}
+              leftIcon={createUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             >
-              {isSubmitting ? 'Creating...' : 'Create User'}
+              {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
           </FormActions>
         </form>

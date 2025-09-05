@@ -1,26 +1,37 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import { fetchUsers, deleteUser } from "../../store/slices/userSlice";
-
-import { Card, Button, DataTable, PermissionGate, DeleteConfirmationModal } from "../../components/UI";
-import { Plus, Users, Eye, Edit, Trash2 } from "lucide-react";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
+import { Plus, Users, Eye, Edit, Trash2, MoreVertical } from "lucide-react";
 import { PERMISSIONS } from "../../utils/permissions";
 import type { User } from "../../types";
+import { useUsers, useDeleteUser } from "../../hooks/useUsers";
+import { useQueryClient } from "@tanstack/react-query";
+import { useToast } from "../../contexts/ToastContext";
+import { useAppSelector } from "../../store/hooks";
+import { usePermissions } from "../../hooks/usePermissionCheck";
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
+  const { showSuccess, showError } = useToast();
+  const { hasPermission } = usePermissions();
+  
+  // Get current logged-in user
+  const { user: currentLoggedInUser } = useAppSelector(state => state.auth);
 
-  const { users, isLoading } = useAppSelector((state) => state.users);
-
-  // Temporary: Simple state management to test
+  // Table state management
   const [searchField, setSearchField] = useState("username");
   const [searchValue, setSearchValue] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentPageSize, setCurrentPageSize] = useState(10);
   const [sortField, setSortField] = useState("created_at");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
+
+  // Refs to track API calls
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Loading state for refresh and search
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -33,17 +44,35 @@ const UsersPage: React.FC = () => {
     isLoading: false
   });
 
-  // Simple initial fetch
-  React.useEffect(() => {
-    dispatch(
-      fetchUsers({
-        page: 1,
-        limit: 10,
-        sort_field: "created_at",
-        sort_by: "desc",
-      })
-    );
-  }, [dispatch]);
+  // Query parameters
+  const queryParams = {
+    page: currentPage,
+    limit: currentPageSize,
+    sort_field: sortField,
+    sort_by: sortDirection,
+    ...(searchValue && { [`filter[${searchField}]`]: searchValue }),
+  };
+
+  // React Query hooks
+  const { data: users, isLoading, isFetching, error } = useUsers(queryParams);
+  const deleteUserMutation = useDeleteUser();
+  const queryClient = useQueryClient();
+
+  // Clear searching state when data changes
+  useEffect(() => {
+    if (users || error) {
+      setIsSearching(false);
+    }
+  }, [users, error]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleViewUser = (user: User) => {
     navigate(`/users/${user.id}`);
@@ -67,20 +96,18 @@ const UsersPage: React.FC = () => {
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await dispatch(deleteUser(deleteModal.user.id)).unwrap();
-      // Refresh the users list
-      await dispatch(
-        fetchUsers({
-          page: currentPage,
-          limit: 10,
-          sort_field: sortField,
-          sort_by: sortDirection,
-          forceRefresh: true,
-        })
+      const response = await deleteUserMutation.mutateAsync(deleteModal.user.id);
+      
+      // Show success message from API response
+      showSuccess(
+        response.message || 'User deleted successfully!',
+        'User Deleted'
       );
+      
       setDeleteModal({ isOpen: false, user: null, isLoading: false });
     } catch (error) {
       console.error("Failed to delete user:", error);
+      showError('Failed to delete user', 'Delete Failed');
       setDeleteModal(prev => ({ ...prev, isLoading: false }));
     }
   };
@@ -120,6 +147,7 @@ const UsersPage: React.FC = () => {
       key: "id",
       header: "ID",
       sortable: true,
+      hideFromSearch: true, // Hide ID from search field dropdown
       render: (_: unknown, user: User) => user?.id || "N/A",
     },
     {
@@ -162,45 +190,39 @@ const UsersPage: React.FC = () => {
       key: "actions",
       header: "Actions",
       sortable: false,
+      hideFromSearch: true, // Hide Actions from search field dropdown
       render: (_: unknown, user: User) => {
         if (!user) return <div>N/A</div>;
 
         return (
-          <div className="flex space-x-2">
-            <PermissionGate permission={PERMISSIONS.USERS_SHOW}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleViewUser(user)}
-                className="flex items-center space-x-1"
-              >
-                <Eye className="h-4 w-4" />
-                <span>View</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.USERS_EDIT}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditUser(user)}
-                className="flex items-center space-x-1"
-              >
-                <Edit className="h-4 w-4" />
-                <span>Edit</span>
-              </Button>
-            </PermissionGate>
-
-            <PermissionGate permission={PERMISSIONS.USERS_DELETE}>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleDeleteUser(user)}
-                className="flex items-center space-x-1 text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span>Delete</span>
-              </Button>
+          <div className="flex justify-end relative">
+            <PermissionGate 
+              permissions={[PERMISSIONS.USERS_SHOW, PERMISSIONS.USERS_EDIT, PERMISSIONS.USERS_DELETE]}
+              requireAll={false}
+              fallback={<div className="w-8 h-8"></div>}
+            >
+              <DropdownMenu
+                items={[
+                  ...(hasPermission(PERMISSIONS.USERS_SHOW) ? [{
+                    label: 'View',
+                    icon: <Eye className="h-4 w-4" />,
+                    onClick: () => handleViewUser(user),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.USERS_EDIT) ? [{
+                    label: 'Edit',
+                    icon: <Edit className="h-4 w-4" />,
+                    onClick: () => handleEditUser(user),
+                  }] : []),
+                  ...(hasPermission(PERMISSIONS.USERS_DELETE) && currentLoggedInUser && currentLoggedInUser.id !== user.id ? [{
+                    label: 'Delete',
+                    icon: <Trash2 className="h-4 w-4" />,
+                    onClick: () => handleDeleteUser(user),
+                    className: 'text-red-600 hover:text-red-700',
+                  }] : []),
+                ]}
+                trigger={<MoreVertical className="h-4 w-4" />}
+                className="overflow-visible"
+              />
             </PermissionGate>
           </div>
         );
@@ -228,96 +250,70 @@ const UsersPage: React.FC = () => {
       </div>
 
       <DataTable
-        data={users || ([] as any)}
+        data={users || []}
         columns={tableColumns as any}
-        isLoading={isLoading || isLocalLoading}
+        isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {
+          if (page === currentPage) return; // Prevent duplicate calls
           setCurrentPage(page);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchUsers({
-              page,
-              limit: 10,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onPageSizeChange={(pageSize) => {
+          if (pageSize === currentPageSize) return; // Prevent duplicate calls
           setCurrentPage(1);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchUsers({
-              page: 1,
-              limit: pageSize,
-              sort_field: sortField,
-              sort_by: sortDirection,
-            })
-          ).finally(() => setIsLocalLoading(false));
+          setCurrentPageSize(pageSize);
         }}
         onSort={(field, direction) => {
+          if (field === sortField && direction === sortDirection) return; // Prevent duplicate calls
           setSortField(field);
           setSortDirection(direction);
           setCurrentPage(1);
-          setIsLocalLoading(true);
-          dispatch(
-            fetchUsers({
-              page: 1,
-              limit: 10,
-              sort_field: field,
-              sort_by: direction,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onSearch={(field, value) => {
-          setSearchField(field);
-          setSearchValue(value);
-          setCurrentPage(1);
-          setIsLocalLoading(true);
-          const params: any = {
-            page: 1,
-            limit: 10,
-            sort_field: sortField,
-            sort_by: sortDirection,
-          };
-          if (value.trim()) {
-            params[`filter[${field}]`] = value.trim();
+          // Clear previous timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
           }
-          dispatch(fetchUsers(params)).finally(() => setIsLocalLoading(false));
+          
+          // Set searching state
+          setIsSearching(true);
+          
+          // Debounce search to prevent too many API calls
+          searchTimeoutRef.current = setTimeout(() => {
+            setSearchField(field);
+            setSearchValue(value);
+            setCurrentPage(1);
+            // Don't clear searching state here - let React Query handle it
+          }, 500); // 500ms debounce
         }}
         onClearSearch={() => {
+          // Clear search timeout
+          if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+          }
+          
           setSearchField("username");
           setSearchValue("");
           setCurrentPage(1);
-          setSortField("created_at");
+          setSortField("id");
           setSortDirection("desc");
-          setIsLocalLoading(true);
-          dispatch(
-            fetchUsers({
-              page: 1,
-              limit: 10,
-              sort_field: "created_at",
-              sort_by: "desc",
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
         }}
         onRefresh={() => {
-          setIsLocalLoading(true);
-          dispatch(
-            fetchUsers({
-              page: currentPage,
-              limit: 10,
-              sort_field: sortField,
-              sort_by: sortDirection,
-              forceRefresh: true,
-            })
-          ).finally(() => setIsLocalLoading(false));
+          // Set refreshing state
+          setIsRefreshing(true);
+          // Reset all filters and state to default
+          setSearchValue("");
+          setCurrentPage(1);
+          setSortField("id");
+          setSortDirection("desc");
+          // Invalidate and refetch users data with a slight delay to ensure state is updated
+          setTimeout(() => {
+            queryClient.invalidateQueries({ queryKey: ['users'] }).finally(() => {
+              setIsRefreshing(false);
+            });
+          }, 0);
         }}
-        searchField={searchField}
-        searchValue={searchValue}
         currentPage={currentPage}
-        pageSize={10}
+        pageSize={currentPageSize}
       />
 
       <DeleteConfirmationModal

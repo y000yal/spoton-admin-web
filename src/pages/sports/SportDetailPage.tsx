@@ -1,21 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchSport } from '../../store/slices/sportSlice';
-import { Button, Card, DeleteConfirmationModal } from '../../components/UI';
-import { ArrowLeft, Trophy, Edit, Trash2 } from 'lucide-react';
-import { PermissionGate } from '../../components/UI';
-import { PERMISSIONS } from '../../utils/permissions';
+import React, { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Button, Card, DeleteConfirmationModal } from "../../components/UI";
+import { ArrowLeft, Trophy, Edit, Trash2 } from "lucide-react";
+import { PermissionGate } from "../../components/UI";
+import { PERMISSIONS } from "../../utils/permissions";
+import { useDeleteSport, useSport, useSports } from "../../hooks/useSports";
+import { useQueryClient } from "@tanstack/react-query";
 
 const SportDetailPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { sportId } = useParams<{ sportId: string }>();
-  
-  const { currentSport, isLoading } = useAppSelector((state) => state.sports);
-
-  // Ref to track if sport has been fetched
-  const fetchedSportIdRef = useRef<number | null>(null);
 
   // Delete modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -23,20 +17,37 @@ const SportDetailPage: React.FC = () => {
     isLoading: boolean;
   }>({
     isOpen: false,
-    isLoading: false
+    isLoading: false,
   });
 
-  // Fetch sport data when component mounts - only once per sportId
-  useEffect(() => {
-    if (sportId) {
-      const sportIdNum = parseInt(sportId);
-      if (fetchedSportIdRef.current !== sportIdNum) {
-        fetchedSportIdRef.current = sportIdNum;
-        dispatch(fetchSport(sportIdNum));
-      }
-    }
-  }, [dispatch, sportId]);
+  // Parse sportId and validate
+  const parsedSportId = parseInt(sportId || "0");
 
+  // Validate sportId
+  if (!sportId || isNaN(parsedSportId) || parsedSportId <= 0) {
+    return (
+      <div className="text-center py-12">
+        <Trophy className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">
+          Invalid Sport ID
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          The sport ID is invalid or missing.
+        </p>
+        <div className="mt-6">
+          <Button onClick={() => navigate("/sports")}>Back to Sports</Button>
+        </div>
+      </div>
+    );
+  }
+
+  // React Query hooks
+  const { data: sportResponse, isLoading, error } = useSport(parsedSportId);
+  const deleteSportMutation = useDeleteSport();
+  const queryClient = useQueryClient();
+
+  // Extract sport data from response
+  const currentSport = sportResponse?.data || sportResponse;
   const handleEdit = () => {
     if (sportId) {
       navigate(`/sports/${sportId}/edit`);
@@ -46,22 +57,30 @@ const SportDetailPage: React.FC = () => {
   const handleDelete = () => {
     setDeleteModal({
       isOpen: true,
-      isLoading: false
+      isLoading: false,
     });
   };
 
   const handleConfirmDelete = async () => {
     if (!currentSport) return;
 
-    setDeleteModal(prev => ({ ...prev, isLoading: true }));
+    setDeleteModal((prev) => ({ ...prev, isLoading: true }));
 
     try {
-      // You can add delete functionality here if needed
-      console.log('Delete sport:', currentSport.id);
-      navigate('/sports');
+      await deleteSportMutation.mutateAsync(currentSport.id);
+
+      // Close modal immediately after successful deletion
+      setDeleteModal({ isOpen: false, isLoading: false });
+      
+      // Invalidate and refetch the sports list data BEFORE navigation
+      await queryClient.invalidateQueries({ queryKey: ["sports"] });
+      await queryClient.refetchQueries({ queryKey: ["sports"] });
+      
+      // Navigate after ensuring fresh data is available
+      navigate("/sports");
     } catch (error) {
-      console.error('Failed to delete sport:', error);
-      setDeleteModal(prev => ({ ...prev, isLoading: false }));
+      console.error("Failed to delete sport:", error);
+      setDeleteModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -75,19 +94,46 @@ const SportDetailPage: React.FC = () => {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2 text-gray-600">Loading sport details...</span>
       </div>
     );
   }
 
-  if (!currentSport) {
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <Trophy className="mx-auto h-12 w-12 text-red-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">
+          Error loading sport
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {error instanceof Error
+            ? error.message
+            : "Failed to load sport details"}
+        </p>
+        <div className="mt-6">
+          <Button onClick={() => navigate("/sports")}>Back to Sports</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentSport || Object.keys(currentSport).length === 0) {
     return (
       <div className="text-center py-12">
         <Trophy className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900">Sport not found</h3>
-        <p className="mt-1 text-sm text-gray-500">The sport you're looking for doesn't exist.</p>
-        <div className="mt-6">
-          <Button onClick={() => navigate('/sports')}>
-            Back to Sports
+        <h3 className="mt-2 text-sm font-medium text-gray-900">
+          Sport not found
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {!currentSport
+            ? "The sport you're looking for doesn't exist."
+            : "The sport data appears to be empty. This might be a caching issue."}
+        </p>
+        <div className="mt-6 space-x-3">
+          <Button onClick={() => navigate("/sports")}>Back to Sports</Button>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            Refresh Page
           </Button>
         </div>
       </div>
@@ -96,14 +142,19 @@ const SportDetailPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; className: string }> = {
-      'active': { label: 'Active', className: 'bg-green-100 text-green-800' },
-      'inactive': { label: 'Inactive', className: 'bg-red-100 text-red-800' },
+      active: { label: "Active", className: "bg-green-100 text-green-800" },
+      inactive: { label: "Inactive", className: "bg-red-100 text-red-800" },
     };
 
-    const statusInfo = statusMap[status] || { label: 'Unknown', className: 'bg-gray-100 text-gray-800' };
-    
+    const statusInfo = statusMap[status] || {
+      label: "Unknown",
+      className: "bg-gray-100 text-gray-800",
+    };
+
     return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}>
+      <span
+        className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
+      >
         {statusInfo.label}
       </span>
     );
@@ -116,7 +167,7 @@ const SportDetailPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/sports')}
+            onClick={() => navigate("/sports")}
             className="flex items-center space-x-1"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -125,7 +176,7 @@ const SportDetailPage: React.FC = () => {
           <Trophy className="h-8 w-8 text-blue-600" />
           <h1 className="text-2xl font-bold text-gray-900">Sport Details</h1>
         </div>
-        
+
         <div className="flex space-x-3">
           <PermissionGate permission={PERMISSIONS.SPORTS_EDIT}>
             <Button
@@ -136,7 +187,7 @@ const SportDetailPage: React.FC = () => {
               <span>Edit</span>
             </Button>
           </PermissionGate>
-          
+
           <PermissionGate permission={PERMISSIONS.SPORTS_DELETE}>
             <Button
               onClick={handleDelete}
@@ -162,7 +213,7 @@ const SportDetailPage: React.FC = () => {
                   </label>
                   <p className="text-lg text-gray-900">{currentSport.name}</p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Status
@@ -171,31 +222,35 @@ const SportDetailPage: React.FC = () => {
                     {getStatusBadge(currentSport.status)}
                   </div>
                 </div>
-                
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Description
                   </label>
                   <p className="text-gray-900">
-                    {currentSport.description || 'No description provided'}
+                    {currentSport.description || "No description provided"}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Created At
                   </label>
                   <p className="text-gray-900">
-                    {currentSport.created_at ? new Date(currentSport.created_at).toLocaleDateString() : 'N/A'}
+                    {currentSport.created_at
+                      ? new Date(currentSport.created_at).toLocaleDateString()
+                      : "N/A"}
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Updated At
                   </label>
                   <p className="text-gray-900">
-                    {currentSport.updated_at ? new Date(currentSport.updated_at).toLocaleDateString() : 'N/A'}
+                    {currentSport.updated_at
+                      ? new Date(currentSport.updated_at).toLocaleDateString()
+                      : "N/A"}
                   </p>
                 </div>
               </div>
@@ -240,7 +295,7 @@ const SportDetailPage: React.FC = () => {
         onConfirm={handleConfirmDelete}
         title="Delete Sport"
         message="Are you sure you want to delete this sport? This action cannot be undone."
-        itemName={currentSport?.name || ''}
+        itemName={currentSport?.name || ""}
         isLoading={deleteModal.isLoading}
       />
     </div>

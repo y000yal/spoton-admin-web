@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchSport, updateSport } from '../../store/slices/sportSlice';
 import { Button, Card } from '../../components/UI';
 import { ArrowLeft, Trophy, Upload, X } from 'lucide-react';
 import type { UpdateSportRequest } from '../../types';
+import { useSport, useUpdateSport } from '../../hooks/useSports';
 
 const SportEditPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { sportId } = useParams<{ sportId: string }>();
-  
-  const { currentSport, isLoading } = useAppSelector((state) => state.sports);
   
   const [formData, setFormData] = useState<UpdateSportRequest>({
     name: '',
@@ -25,20 +21,11 @@ const SportEditPage: React.FC = () => {
   const [hasExistingImage, setHasExistingImage] = useState(false);
 
   // Refs to track API calls and prevent duplicates
-  const fetchedSportIdRef = useRef<number | null>(null);
   const isSubmittingRef = useRef(false);
 
-  // Fetch sport data when component mounts - only once per sportId
-  useEffect(() => {
-    if (sportId) {
-      const sportIdNum = parseInt(sportId);
-      if (fetchedSportIdRef.current !== sportIdNum) {
-        fetchedSportIdRef.current = sportIdNum;
-        dispatch(fetchSport(sportIdNum));
-      }
-    }
-  }, [dispatch, sportId]);
-
+  // React Query hooks
+  const { data: currentSport, isLoading, error } = useSport(parseInt(sportId || '0'));
+  const updateSportMutation = useUpdateSport();
   // Update form data when sport is loaded
   useEffect(() => {
     if (currentSport) {
@@ -158,11 +145,11 @@ const SportEditPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await dispatch(updateSport({ 
+      await updateSportMutation.mutateAsync({ 
         sportId: parseInt(sportId), 
         sportData: formData,
         existingMediaId: currentSport?.media_id
-      })).unwrap();
+      });
       navigate('/sports');
     } catch (error) {
       console.error('Failed to update sport:', error);

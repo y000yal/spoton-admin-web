@@ -1,26 +1,37 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../store/hooks';
-import { fetchRole } from '../../store/slices/roleSlice';
 import { Button, Card } from '../../components/UI';
 import { ArrowLeft, Users, Edit, Trash2 } from 'lucide-react';
 import { PermissionGate } from '../../components/UI';
 import { PERMISSIONS } from '../../utils/permissions';
+import { useRole, useDeleteRole } from '../../hooks/useRoles';
+import { useQueryClient } from '@tanstack/react-query';
 
 const RoleDetailPage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { roleId } = useParams<{ roleId: string }>();
   
-  const { currentRole, isLoading } = useAppSelector((state) => state.roles);
+  // Parse roleId and validate
+  const parsedRoleId = parseInt(roleId || '0');
+  
+  // Validate roleId
+  if (!roleId || isNaN(parsedRoleId) || parsedRoleId <= 0) {
+    return (
+      <div className="text-center py-12">
+        <Users className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Invalid Role ID</h3>
+        <p className="mt-1 text-sm text-gray-500">The role ID is invalid or missing.</p>
+        <div className="mt-6">
+          <Button onClick={() => navigate("/roles")}>Back to Roles</Button>
+        </div>
+      </div>
+    );
+  }
 
-  // Fetch role data when component mounts
-  useEffect(() => {
-    if (roleId) {
-      dispatch(fetchRole(parseInt(roleId)));
-    }
-  }, [dispatch, roleId]);
-
+  // React Query hooks
+  const { data: currentRole, isLoading, error } = useRole(parsedRoleId);
+  const deleteRoleMutation = useDeleteRole();
+  const queryClient = useQueryClient();
   const handleEdit = () => {
     if (roleId) {
       navigate(`/roles/${roleId}/edit`);
@@ -30,8 +41,13 @@ const RoleDetailPage: React.FC = () => {
   const handleDelete = async () => {
     if (currentRole && window.confirm(`Are you sure you want to delete role "${currentRole.name}"?`)) {
       try {
-        // You can add delete functionality here if needed
-        console.log('Delete role:', currentRole.id);
+        await deleteRoleMutation.mutateAsync(currentRole.id);
+        
+        // Invalidate and refetch the roles list data BEFORE navigation
+        await queryClient.invalidateQueries({ queryKey: ["roles"] });
+        await queryClient.refetchQueries({ queryKey: ["roles"] });
+        
+        // Navigate after ensuring fresh data is available
         navigate('/roles');
       } catch (error) {
         console.error('Failed to delete role:', error);
@@ -62,20 +78,6 @@ const RoleDetailPage: React.FC = () => {
     );
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      '1': { label: 'Active', className: 'bg-green-100 text-green-800' },
-      '0': { label: 'Inactive', className: 'bg-red-100 text-red-800' },
-    };
-
-    const statusInfo = statusMap[status] || { label: 'Unknown', className: 'bg-gray-100 text-gray-800' };
-    
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}>
-        {statusInfo.label}
-      </span>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -133,24 +135,6 @@ const RoleDetailPage: React.FC = () => {
                 Display Name
               </label>
               <p className="text-lg text-gray-900">{currentRole.display_name}</p>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <div className="mt-1">
-                {getStatusBadge(currentRole.status)}
-              </div>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Permissions Count
-              </label>
-              <p className="text-lg text-gray-900">
-                {currentRole.permissions?.length || 0} permissions
-              </p>
             </div>
             
             <div className="md:col-span-2">

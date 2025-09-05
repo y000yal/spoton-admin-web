@@ -6,7 +6,9 @@ import {
   Key, 
   LogOut, 
   Home,
-  Trophy
+  Trophy,
+  Globe,
+  Camera
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getFilteredNavigationItems } from '../../utils/permissions';
@@ -39,22 +41,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
       
       // Check if click is outside the sidebar
       if (sidebarRef.current && !sidebarRef.current.contains(target)) {
-        console.log('Document click outside detected:', {
-          target: target,
-          isDesktop,
-          isCollapsed,
-          shouldClose: isDesktop ? !isCollapsed : true
-        });
+      
         
         // On mobile: always close when clicking outside
         // On desktop: only close if expanded (collapse it)
         if (isDesktop) {
           // On desktop, collapse the sidebar instead of closing it
-          console.log('Collapsing sidebar on desktop due to click outside');
           // We need to call the collapse toggle instead of the mobile toggle
           // This will be handled by the backdrop click
         } else {
-          console.log('Closing mobile sidebar due to click outside');
           onToggle();
         }
       }
@@ -62,7 +57,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
 
     // Add listener when backdrop should be shown
     if (shouldShowBackdrop) {
-      console.log('Adding document click listener, backdrop is shown');
       document.body.addEventListener('click', handleDocumentClick);
     }
 
@@ -74,26 +68,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
   // Get filtered navigation items based on user permissions
   const filteredNavigationItems = getFilteredNavigationItems(user);
   
-  // Debug: Log user permissions and filtered items
-  console.log('Sidebar Debug:', {
-    user: user?.username,
-    userPermissions: user?.role?.permissions?.map(p => p.slug) || [],
-    filteredNavigationItems: filteredNavigationItems.map(item => item.name),
-    hasSportsPermission: user?.role?.permissions?.some(p => p.slug === 'sport-index')
-  });
-  
-  // Temporary: Force Sports to appear for testing
-  const sportsItem = {
-    name: 'Sports',
-    href: '/sports',
-    permission: 'sport-index',
-    icon: Trophy
-  };
-  
-  const finalNavigationItems = filteredNavigationItems.some(item => item.name === 'Sports') 
-    ? filteredNavigationItems 
-    : [...filteredNavigationItems, sportsItem];
-  
   // Map navigation items to include icons
   const iconMap = {
     'Dashboard': Home,
@@ -101,9 +75,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
     'Roles': Shield,
     'Permissions': Key,
     'Sports': Trophy,
+    'Countries': Globe,
+    'Media': Camera,
   };
   
-  const navigation = finalNavigationItems.map(item => ({
+  const navigation = filteredNavigationItems.map(item => ({
     ...item,
     icon: iconMap[item.name as keyof typeof iconMap] || Home,
   }));
@@ -114,8 +90,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
 
   return (
     <>
-      {/* Debug info */}
-      {console.log('Sidebar render - isOpen:', isOpen, 'isCollapsed:', isCollapsed, 'shouldShowBackdrop:', shouldShowBackdrop, 'isDesktop:', isDesktop)}
       
       {/* Full screen backdrop - show when sidebar is open on mobile OR expanded on desktop */}
       {shouldShowBackdrop && (
@@ -135,15 +109,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            console.log('Backdrop clicked, closing sidebar');
             
             if (isDesktop && onCollapseToggle) {
               // On desktop, collapse the sidebar
-              console.log('Collapsing sidebar on desktop');
               onCollapseToggle();
             } else {
               // On mobile, close the sidebar
-              console.log('Closing mobile sidebar');
               onToggle();
             }
           }}

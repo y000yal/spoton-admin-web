@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '../../store/hooks';
-import { createPermission } from '../../store/slices/permissionSlice';
-
 import { Card, Button, InputField, TextareaField, FormSection, FormActions } from '../../components/UI';
 import { ArrowLeft, Save, X, Shield } from 'lucide-react';
 import type { CreatePermissionRequest } from '../../types';
+import { useCreatePermission } from '../../hooks/usePermissions';
+import { useQueryClient } from '@tanstack/react-query';
 
 const PermissionCreatePage: React.FC = () => {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
+  
+  // React Query hooks
+  const createPermissionMutation = useCreatePermission();
+  const queryClient = useQueryClient();
 
   const [formData, setFormData] = useState<CreatePermissionRequest>({
     name: '',
@@ -43,7 +45,15 @@ const PermissionCreatePage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await dispatch(createPermission(formData)).unwrap();
+      await createPermissionMutation.mutateAsync(formData);
+      
+      // Invalidate and refetch the permissions list data to ensure fresh data
+      await queryClient.invalidateQueries({ queryKey: ["permissions"] });
+      
+      // Wait for the invalidation to complete and data to be refetched
+      await queryClient.refetchQueries({ queryKey: ["permissions"] });
+      
+      // Only navigate after data is fully updated
       navigate('/permissions');
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create permission");

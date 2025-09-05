@@ -1,14 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAppDispatch, useAppSelector } from "../../store/hooks";
-import {
-  updateRole,
-  fetchRole,
-  fetchRolePermissions,
-  assignRolePermissions,
-} from "../../store/slices/roleSlice";
-import { fetchAllPermissionsForRoles } from "../../store/slices/permissionSlice";
-
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Button,
@@ -19,16 +11,31 @@ import {
 } from "../../components/UI";
 import GroupedPermissionsList from "../../components/GroupedPermissionsList";
 import { ArrowLeft, Save, X, Key, RefreshCw } from "lucide-react";
-import type { UpdateRoleRequest } from "../../types";
+import type { UpdateRoleRequest, Permission, PaginatedResponse } from "../../types";
+import { useRole, useUpdateRole, useRolePermissions, useAssignRolePermissions } from "../../hooks/useRoles";
+import { usePermissions } from "../../hooks/usePermissions";
+import { useToast } from "../../contexts/ToastContext";
 
 const RoleEditPage: React.FC = () => {
   const { roleId } = useParams<{ roleId: string }>();
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const hasInitialFetch = useRef(false);
+  const queryClient = useQueryClient();
+  const { showSuccess, showError } = useToast();
 
-  const { currentRole, isLoading } = useAppSelector((state) => state.roles);
-  const { permissions } = useAppSelector((state) => state.permissions);
+  // React Query hooks
+  const roleIdNumber = roleId ? parseInt(roleId) : 0;
+  const { data: currentRole, isLoading: roleLoading, error: roleError } = useRole(roleIdNumber);
+  const updateRoleMutation = useUpdateRole();
+  const { data: permissionsData } = usePermissions({ page: 1, limit: 1000 });
+  const { data: rolePermissionsData, isLoading: rolePermissionsLoading } = useRolePermissions(roleIdNumber);
+  const assignPermissionsMutation = useAssignRolePermissions();
+  
+  const permissions: Permission[] = useMemo(() => 
+    (permissionsData as PaginatedResponse<Permission>)?.data || [], 
+    [permissionsData]
+  );
+
   const [formData, setFormData] = useState<UpdateRoleRequest>({
     name: "",
     display_name: "",
@@ -38,29 +45,18 @@ const RoleEditPage: React.FC = () => {
 
   // Permission assignment state
   const [selectedPermissions, setSelectedPermissions] = useState<number[]>([]);
-  const [permissionsLoading, setPermissionsLoading] = useState(true); // Start with loading true
   const [savingPermissions, setSavingPermissions] = useState(false);
 
+
   // Check if permissions are loaded
-  const arePermissionsLoaded = permissions?.data && permissions.data.length > 0;
+  const arePermissionsLoaded = permissionsData && permissions.length > 0;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load role data on mount and when roleId changes
-  useEffect(() => {
-    if (roleId && !hasInitialFetch.current) {
-      hasInitialFetch.current = true;
-      dispatch(fetchRole(parseInt(roleId)));
-    }
-  }, [roleId, dispatch]);
 
-  // Load permissions for role editing - always fetch all permissions
-  useEffect(() => {
-    // Always fetch all permissions for role editing to ensure we have complete data
-    // This prevents issues when coming from permissions list page which has limited permissions
-    dispatch(fetchAllPermissionsForRoles());
-  }, [dispatch]);
+  // Load role data on mount and when roleId changes
+  // Data is loaded via React Query hooks above
 
   // Clear all data immediately when role changes (to prevent showing old data)
   useEffect(() => {
@@ -74,8 +70,6 @@ const RoleEditPage: React.FC = () => {
       });
       // Clear selected permissions immediately
       setSelectedPermissions([]);
-      // Set loading state immediately
-      setPermissionsLoading(true);
       // Reset initial fetch flags for the new role
       hasInitialFetch.current = false;
       // Don't reset permissions fetch flag - we want to keep permissions loaded
@@ -95,56 +89,24 @@ const RoleEditPage: React.FC = () => {
     }
   }, [currentRole]);
 
-  // Load permissions for the role
-  const loadRolePermissions = useCallback(async () => {
-    if (!currentRole) {
-      return;
-    }
-
-    setPermissionsLoading(true);
-    try {
-      // Fetch role-specific permissions using Redux thunk
-      const result = await dispatch(
-        fetchRolePermissions(currentRole.id)
-      ).unwrap();
-
-      // Set selected permissions based on role permissions
-      const selectedSlugs = (result.permissions.permissions || []).map(
+  // Update selected permissions when role permissions data changes
+  useEffect(() => {
+    if (rolePermissionsData && permissions.length > 0) {
+      // Extract slugs from role permissions
+      const selectedSlugs = (rolePermissionsData.permissions || []).map(
         (rp: Record<string, unknown>) => rp.slug as string
       );
       
-      // Use permissions from state to find matching IDs
-      const selectedIds = (permissions?.data || [])
-        .filter((p) => selectedSlugs.includes(p.slug as string))
-        .map((p) => p.id as number);
+      // Find matching permission IDs
+      const selectedIds = permissions
+        .filter((p: Permission) => selectedSlugs.includes(p.slug))
+        .map((p: Permission) => p.id);
       
       setSelectedPermissions(selectedIds);
-    } catch (error) {
-      console.error("Failed to load role permissions:", error);
-      setSelectedPermissions([]);
-    } finally {
-      setPermissionsLoading(false);
     }
-  }, [currentRole, permissions, dispatch]);
+  }, [rolePermissionsData, permissions]);
 
-  // Load role permissions when both role and permissions are available
-  useEffect(() => {
-    if (currentRole) {
-      if (permissions?.data && permissions.data.length > 0) {
-        // Ensure we're in loading state when starting to load role permissions
-        setPermissionsLoading(true);
-        loadRolePermissions();
-      }
-    }
-  }, [currentRole, permissions, loadRolePermissions]);
-
-  // Force refresh permissions when role changes
-  useEffect(() => {
-    if (roleId) {
-      // Always fetch all permissions when role changes to ensure we have complete data
-      dispatch(fetchAllPermissionsForRoles());
-    }
-  }, [roleId, dispatch]);
+  // Permissions are loaded via React Query hook above
 
   // Handle permission toggle
   const handlePermissionToggle = (permissionId: number) => {
@@ -161,15 +123,21 @@ const RoleEditPage: React.FC = () => {
 
     setSavingPermissions(true);
     try {
-      await dispatch(
-        assignRolePermissions({
-          roleId: currentRole.id,
-          permissionIds: selectedPermissions,
-        })
-      ).unwrap();
-      console.log("Permissions saved successfully");
-    } catch (error) {
+      await assignPermissionsMutation.mutateAsync({
+        roleId: currentRole.id,
+        permissionIds: selectedPermissions
+      });
+      showSuccess(
+        `Successfully updated permissions for role "${currentRole.display_name || currentRole.name}"`,
+        "Permissions Saved"
+      );
+    } catch (error: unknown) {
       console.error("Failed to save permissions:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to save permissions. Please try again.";
+      showError(
+        errorMessage,
+        "Save Failed"
+      );
     } finally {
       setSavingPermissions(false);
     }
@@ -190,9 +158,10 @@ const RoleEditPage: React.FC = () => {
     setError(null);
 
     try {
-      await dispatch(
-        updateRole({ roleId: parseInt(roleId), roleData: formData })
-      ).unwrap();
+      await updateRoleMutation.mutateAsync({ 
+        roleId: parseInt(roleId), 
+        roleData: formData 
+      });
       navigate("/roles");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to update role");
@@ -205,36 +174,56 @@ const RoleEditPage: React.FC = () => {
     navigate("/roles");
   };
 
+  // Show error if roleId is invalid
+  if (!roleId || isNaN(roleIdNumber) || roleIdNumber <= 0) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Invalid Role ID
+          </h2>
+          <p className="text-gray-600 mb-6">
+            The role ID in the URL is invalid.
+          </p>
+          <Button onClick={handleCancel} variant="secondary">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Go Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Show loading screen until all data is fetched and role permissions are loaded
   // Also show loading immediately when roleId changes (to prevent old data flash)
-  if (isLoading || !permissions?.data || permissionsLoading || !currentRole || 
-      (selectedPermissions.length === 0 && !permissionsLoading) ||
+  if (roleLoading || !permissionsData || rolePermissionsLoading || !currentRole || 
       (roleId && (!currentRole || currentRole.id !== parseInt(roleId)))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
                      <p className="mt-4 text-gray-600">
-             {isLoading 
+             {roleLoading 
                ? "Loading role information..." 
-               : !permissions?.data
+               : !permissionsData
                  ? "Loading permissions list..."
-                 : permissionsLoading 
+                 : rolePermissionsLoading 
                    ? "Loading role permissions..." 
                    : "Loading role data..."
              }
            </p>
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${roleLoading ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
               <span className="text-sm text-gray-500">Role Data</span>
             </div>
             <div className="flex items-center justify-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${permissions?.data ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${permissionsData ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
               <span className="text-sm text-gray-500">Permissions List</span>
             </div>
             <div className="flex items-center justify-center space-x-2">
-              <div className={`w-2 h-2 rounded-full ${!permissionsLoading && selectedPermissions.length > 0 ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
+              <div className={`w-2 h-2 rounded-full ${!rolePermissionsLoading && selectedPermissions.length > 0 ? 'bg-primary-600' : 'bg-gray-300'}`}></div>
               <span className="text-sm text-gray-500">Role Permissions</span>
             </div>
           </div>
@@ -243,7 +232,28 @@ const RoleEditPage: React.FC = () => {
     );
   }
 
-  if (!currentRole) {
+  // Show error if role failed to load
+  if (roleError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Error Loading Role
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {roleError.message || "Failed to load role data."}
+          </p>
+          <Button onClick={handleCancel} variant="secondary">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Go Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentRole && !roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -318,26 +328,6 @@ const RoleEditPage: React.FC = () => {
                 placeholder="Describe the role's purpose and responsibilities"
                 rows={3}
               />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    name="status"
-                    value={formData.status || "1"}
-                    onChange={(e) =>
-                      handleInputChange("status", e.target.value)
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
-                    required
-                  >
-                    <option value="1">Active</option>
-                    <option value="0">Inactive</option>
-                  </select>
-                </div>
-              </div>
             </FormSection>
 
             {error && (
@@ -386,42 +376,47 @@ const RoleEditPage: React.FC = () => {
                     <p className="text-gray-600">
                       Select the permissions that should be assigned to this role.
                     </p>
-                                         {permissionsLoading ? (
+                                         {rolePermissionsLoading ? (
                        <p className="text-sm text-blue-600 mt-1">
                          🔄 Loading role permissions...
                        </p>
                      ) : arePermissionsLoaded ? (
                        <p className="text-sm text-green-600 mt-1">
-                         ✓ {permissions.data.length} permissions loaded
+                         ✓ {permissions.length} permissions loaded
                        </p>
                      ) : null}
                   </div>
                                          <Button
                        variant="ghost"
                        size="sm"
-                       onClick={() => {
-                         setPermissionsLoading(true);
-                         setSelectedPermissions([]);
-                         loadRolePermissions();
+                       onClick={async () => {
+                         // Invalidate and refetch role permissions data
+                         await queryClient.invalidateQueries({ 
+                           queryKey: ['roles', 'permissions', roleIdNumber] 
+                         });
+                         await queryClient.invalidateQueries({ 
+                           queryKey: ['permissions'] 
+                         });
+                         // Don't clear selected permissions - let the useEffect handle updating them
                        }}
                        leftIcon={<RefreshCw className="h-4 w-4" />}
                        className="text-gray-500 hover:text-gray-700"
-                       disabled={permissionsLoading}
+                       disabled={rolePermissionsLoading}
                      >
-                       {permissionsLoading ? "Refreshing..." : "Refresh"}
+                       {rolePermissionsLoading ? "Refreshing..." : "Refresh"}
                      </Button>
                   </div>
 
                 <GroupedPermissionsList
-                  permissions={permissions?.data || []}
+                  permissions={permissions}
                   selectedPermissions={selectedPermissions}
                   onPermissionToggle={handlePermissionToggle}
                   onSelectAll={() => {
-                    const allPermissionIds = (permissions?.data || []).map((p) => p.id);
+                    const allPermissionIds = permissions.map((p: Permission) => p.id);
                     setSelectedPermissions(allPermissionIds);
                   }}
                   onRemoveAll={() => setSelectedPermissions([])}
-                  isLoading={permissionsLoading}
+                  isLoading={rolePermissionsLoading}
                   showSelectAllButtons={true}
                 />
               </div>

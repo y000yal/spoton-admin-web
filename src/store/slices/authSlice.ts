@@ -86,6 +86,19 @@ export const refreshToken = createAsyncThunk(
   }
 );
 
+export const refreshCurrentUser = createAsyncThunk(
+  'auth/refreshCurrentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      const userData = await authService.refreshCurrentUser();
+      return userData;
+    } catch (error: unknown) {
+      const errorMessage = extractErrorMessage(error);
+      return rejectWithValue(errorMessage);
+    }
+  }
+);
+
 export const logoutUser = createAsyncThunk(
   'auth/logout',
   async () => {
@@ -171,6 +184,24 @@ const authSlice = createSlice({
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('user');
+      })
+      
+      // Refresh current user
+      .addCase(refreshCurrentUser.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(refreshCurrentUser.fulfilled, (state, action: PayloadAction<User>) => {
+        state.isLoading = false;
+        state.user = action.payload;
+        state.error = null;
+      })
+      .addCase(refreshCurrentUser.rejected, (state, action) => {
+        state.isLoading = false;
+        const errorMessage = typeof action.payload === 'string' 
+          ? action.payload 
+          : 'Failed to refresh user data';
+        state.error = errorMessage;
       })
       
       // Logout

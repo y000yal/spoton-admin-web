@@ -125,6 +125,10 @@ const getIconForCategory = (categoryName: string): string => {
     'Content Management': '📝',
     'Reports & Analytics': '📈',
     'Settings & Configuration': '⚙️',
+    'Sport Management': '🏆',
+    'Sports Management': '🏆',
+    'Country Management': '🌍',
+    'Media Management': '📷',
   };
   
   // Check for partial matches
@@ -137,6 +141,9 @@ const getIconForCategory = (categoryName: string): string => {
   if (lowerName.includes('content') || lowerName.includes('post') || lowerName.includes('article')) return '📝';
   if (lowerName.includes('report') || lowerName.includes('analytics')) return '📈';
   if (lowerName.includes('settings') || lowerName.includes('config')) return '⚙️';
+  if (lowerName.includes('sport')) return '🏆';
+  if (lowerName.includes('country')) return '🌍';
+  if (lowerName.includes('media')) return '📷';
   
   return iconMap[categoryName] || '🔧';
 };
@@ -162,24 +169,6 @@ const generateDescriptionFromPermissions = (permissions: Permission[]): string =
   }
 };
 
-/**
- * Get default category description when no permission descriptions are available
- */
-const getDefaultCategoryDescription = (categoryName: string): string => {
-  const defaultDescriptions: { [key: string]: string } = {
-    'User Management': 'Permissions related to user account management',
-    'Role Management': 'Permissions related to role management and assignment',
-    'Permission Management': 'Permissions related to permission management',
-    'Dashboard': 'Permissions related to dashboard access and viewing',
-    'System Administration': 'System-wide administrative permissions',
-    'Content Management': 'Permissions related to content creation and management',
-    'Reports & Analytics': 'Permissions related to reports and analytics',
-    'Settings & Configuration': 'Permissions related to system settings and configuration',
-    'Other': 'Miscellaneous permissions'
-  };
-  
-  return defaultDescriptions[categoryName] || 'Permissions for this category';
-};
 
 /**
  * Get a human-readable action name from permission slug

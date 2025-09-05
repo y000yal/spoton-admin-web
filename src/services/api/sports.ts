@@ -51,7 +51,8 @@ export class SportService extends BaseApiService {
         mediaId = mediaResponse.id || mediaResponse.media_id;
       } catch (error) {
         console.error('Failed to upload image:', error);
-        throw new Error('Failed to upload image. Please try again.');
+        // Re-throw the original error to preserve the 422 response structure
+        throw error;
       }
     }
 
@@ -80,7 +81,8 @@ export class SportService extends BaseApiService {
         mediaId = mediaResponse.id || mediaResponse.media_id;
       } catch (error) {
         console.error('Failed to upload image:', error);
-        throw new Error('Failed to upload image. Please try again.');
+        // Re-throw the original error to preserve the 422 response structure
+        throw error;
       }
     }
 

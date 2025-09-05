@@ -140,7 +140,7 @@ export const searchUsers = createAsyncThunk(
     };
     
     // Add search filter if provided
-    if (isSearchRequest && params.searchField) {
+    if (isSearchRequest && params.searchField && params.searchValue) {
       apiParams[`filter[${params.searchField}]`] = params.searchValue.trim();
     }
     
@@ -174,7 +174,7 @@ export const createUser = createAsyncThunk(
   async (userData: CreateUserRequest, { rejectWithValue }) => {
     try {
       const response = await userService.createUser(userData);
-      return response;
+      return { ...response, message: response.message };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
     }
@@ -186,7 +186,7 @@ export const updateUser = createAsyncThunk(
   async ({ userId, userData }: { userId: number; userData: UpdateUserRequest }, { rejectWithValue }) => {
     try {
       const response = await userService.updateUser(userId, userData);
-      return { userId, response };
+      return { userId, response, message: response.message };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
     }
@@ -197,8 +197,8 @@ export const deleteUser = createAsyncThunk(
   'users/deleteUser',
   async (userId: number, { rejectWithValue }) => {
     try {
-      await userService.deleteUser(userId);
-      return userId;
+      const response = await userService.deleteUser(userId);
+      return { userId, message: response.message };
     } catch (error: unknown) {
       return rejectWithValue(extractErrorMessage(error));
     }
@@ -304,13 +304,13 @@ const userSlice = createSlice({
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(deleteUser.fulfilled, (state, action: PayloadAction<number>) => {
+      .addCase(deleteUser.fulfilled, (state, action: PayloadAction<{ userId: number; message: any }>) => {
         state.isLoading = false;
         state.error = null;
         
         // Remove user from the list
         if (state.users?.data) {
-          state.users.data = state.users.data.filter(user => user.id !== action.payload);
+          state.users.data = state.users.data.filter(user => user.id !== action.payload.userId);
           state.users.total = Math.max(0, state.users.total - 1);
         }
       })
