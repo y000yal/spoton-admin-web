@@ -47,12 +47,11 @@ export const useUpdateSport = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sportId, sportData, existingMediaId }: { 
+    mutationFn: ({ sportId, sportData }: { 
       sportId: number; 
       sportData: UpdateSportRequest; 
-      existingMediaId?: number;
-    }) => sportService.updateSport(sportId, sportData, existingMediaId),
-    onSuccess: (data, variables) => {
+    }) => sportService.updateSport(sportId, sportData),
+    onSuccess: (_, variables) => {
       // Invalidate all sport-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: sportsKeys.all });
       

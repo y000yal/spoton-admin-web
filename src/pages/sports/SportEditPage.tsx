@@ -18,13 +18,12 @@ const SportEditPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [hasExistingImage, setHasExistingImage] = useState(false);
 
   // Refs to track API calls and prevent duplicates
   const isSubmittingRef = useRef(false);
 
   // React Query hooks
-  const { data: currentSport, isLoading, error } = useSport(parseInt(sportId || '0'));
+  const { data: currentSport, isLoading } = useSport(parseInt(sportId || '0'));
   const updateSportMutation = useUpdateSport();
   // Update form data when sport is loaded
   useEffect(() => {
@@ -38,7 +37,6 @@ const SportEditPage: React.FC = () => {
       // Set existing image if available
       if (currentSport.media_url) {
         setImagePreview(currentSport.media_url);
-        setHasExistingImage(true);
       }
     }
   }, [currentSport]);
@@ -92,8 +90,6 @@ const SportEditPage: React.FC = () => {
       };
       reader.readAsDataURL(file);
       
-      // Mark that we have a new image (not existing)
-      setHasExistingImage(false);
 
       // Clear error
       if (errors.sport_image) {
@@ -107,7 +103,6 @@ const SportEditPage: React.FC = () => {
 
   const handleRemoveImage = () => {
     setImagePreview(null);
-    setHasExistingImage(false);
     setFormData(prev => ({
       ...prev,
       sport_image: undefined
@@ -147,8 +142,7 @@ const SportEditPage: React.FC = () => {
     try {
       await updateSportMutation.mutateAsync({ 
         sportId: parseInt(sportId), 
-        sportData: formData,
-        existingMediaId: currentSport?.media_id
+        sportData: formData
       });
       navigate('/sports');
     } catch (error) {

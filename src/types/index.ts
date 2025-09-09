@@ -181,5 +181,124 @@ export interface MediaUploadResponse {
   media_id?: number;
   url?: string;
   title?: string;
-  [key: string]: any;
+  [key: string]: unknown;
+}
+
+// Center Types
+export interface Center {
+  id: number;
+  name: string;
+  country_id: number;
+  country: {
+    id: number;
+    name: string;
+  };
+  description: string | null;
+  address: string;
+  longitude: number;
+  latitude: number;
+  status: string;
+  media: Array<{
+    id: number;
+    title: string;
+    url: string;
+    type: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCenterRequest {
+  name: string;
+  country_id: number;
+  description?: string;
+  address: string;
+  longitude: number;
+  latitude: number;
+  status: string;
+  images?: File[];
+}
+
+export interface UpdateCenterRequest {
+  name?: string;
+  country_id?: number;
+  description?: string;
+  address?: string;
+  longitude?: number;
+  latitude?: number;
+  status?: string;
+  images?: File[];
+  media_ids?: number[];
+}
+
+// Area Types
+export interface Area {
+  id: number;
+  name: string;
+  status: string;
+  description: string | null;
+  floor: string;
+  center_id: number;
+  media: Array<{
+    id: number;
+    title: string;
+    url: string;
+    type: string;
+  }>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAreaRequest {
+  name: string;
+  status: string;
+  description?: string;
+  floor: string;
+  images?: File[];
+}
+
+export interface UpdateAreaRequest {
+  name?: string;
+  status?: string;
+  description?: string;
+  floor?: string;
+  images?: File[];
+  media_ids?: number[];
+}
+
+// Country Types
+export interface Country {
+  id: number;
+  name: string;
+}
+
+// Media Types
+export interface Media {
+  id: number;
+  title: string;
+  url: string;
+  type: string;
+  user_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateMediaRequest {
+  images: File[];
+  user_id: number;
+  title?: string;
+}
+
+export interface UpdateMediaRequest {
+  title?: string;
+  user_id?: number;
+}
+
+export interface MediaQueryParams {
+  limit?: number;
+  page?: number;
+  filter_field?: string;
+  filter_value?: string;
+  sort_field?: string;
+  sort_order?: 'asc' | 'desc';
 }

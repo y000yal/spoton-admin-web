@@ -4,6 +4,9 @@ export { userService } from './users';
 export { roleService } from './roles';
 export { permissionService } from './permissions';
 export { sportService } from './sports';
+export { centerService } from './centers';
+export { areaService } from './areas';
+export { mediaService } from './media';
 
 // Export service classes for advanced usage
 export { AuthService } from './auth';
@@ -11,6 +14,9 @@ export { UserService } from './users';
 export { RoleService } from './roles';
 export { PermissionService } from './permissions';
 export { SportService } from './sports';
+export { CenterService } from './centers';
+export { AreaService } from './areas';
+export { MediaService } from './media';
 
 // Export types
 export type {
@@ -32,10 +38,18 @@ export type {
 } from './permissions';
 
 export type {
-  SportQueryParams,
-  CreateSportRequest,
-  UpdateSportRequest
+  SportQueryParams
 } from './sports';
+
+export type {
+  CenterQueryParams
+} from './centers';
+
+export type {
+  AreaQueryParams
+} from './areas';
+
+// Media types are imported from types/index.ts
 
 // Legacy export for backward compatibility
 import { authService } from './auth';
@@ -43,6 +57,9 @@ import { userService } from './users';
 import { roleService } from './roles';
 import { permissionService } from './permissions';
 import { sportService } from './sports';
+import { centerService } from './centers';
+import { areaService } from './areas';
+import { mediaService } from './media';
 
 // Create a legacy apiService object that maintains the old interface
 export const apiService = {
@@ -81,6 +98,28 @@ export const apiService = {
   createSport: sportService.createSport.bind(sportService),
   updateSport: sportService.updateSport.bind(sportService),
   deleteSport: sportService.deleteSport.bind(sportService),
+
+  // Center methods
+  getCenters: centerService.getCenters.bind(centerService),
+  getCenter: centerService.getCenter.bind(centerService),
+  createCenter: centerService.createCenter.bind(centerService),
+  updateCenter: centerService.updateCenter.bind(centerService),
+  deleteCenter: centerService.deleteCenter.bind(centerService),
+
+  // Area methods
+  getAreas: areaService.getAreas.bind(areaService),
+  getArea: areaService.getArea.bind(areaService),
+  createArea: areaService.createArea.bind(areaService),
+  updateArea: areaService.updateArea.bind(areaService),
+  deleteArea: areaService.deleteArea.bind(areaService),
+
+  // Media methods
+  getMedia: mediaService.getMedia.bind(mediaService),
+  getMediaById: mediaService.getMediaById.bind(mediaService),
+  createMedia: mediaService.createMedia.bind(mediaService),
+  updateMedia: mediaService.updateMedia.bind(mediaService),
+  deleteMedia: mediaService.deleteMedia.bind(mediaService),
+  deleteMultipleMedia: (mediaIds: number[], userId: number) => mediaService.deleteMultipleMedia(mediaIds, userId),
 };
 
 // Default export for backward compatibility

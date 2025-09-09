@@ -1,5 +1,20 @@
 import type { User, Permission } from '../types';
 
+// Navigation item types
+export interface NavigationItem {
+  name: string;
+  href: string;
+  permission: string;
+  type?: 'single' | 'dropdown';
+  children?: NavigationChild[];
+}
+
+export interface NavigationChild {
+  name: string;
+  href: string;
+  permission: string;
+}
+
 // Permission constants - these match your backend permission slugs
 export const PERMISSIONS = {
   // Dashboard permissions (assuming you'll add these)
@@ -34,6 +49,27 @@ export const PERMISSIONS = {
   SPORTS_EDIT: 'sport-update',
   SPORTS_DELETE: 'sport-destroy',
   SPORTS_SHOW: 'sport-show',
+  
+  // Centers management permissions
+  CENTERS_VIEW: 'center-index',
+  CENTERS_CREATE: 'center-store',
+  CENTERS_EDIT: 'center-update',
+  CENTERS_DELETE: 'center-destroy',
+  CENTERS_SHOW: 'center-show',
+  
+  // Areas management permissions
+  AREAS_VIEW: 'area-index',
+  AREAS_CREATE: 'area-store',
+  AREAS_EDIT: 'area-update',
+  AREAS_DELETE: 'area-destroy',
+  AREAS_SHOW: 'area-show',
+  
+  // Media management permissions
+  MEDIA_VIEW: 'media-index',
+  MEDIA_CREATE: 'media-store',
+  MEDIA_EDIT: 'media-update',
+  MEDIA_DELETE: 'media-destroy',
+  MEDIA_SHOW: 'media-show',
 } as const;
 
 // Route to permission mapping
@@ -52,10 +88,20 @@ export const ROUTE_PERMISSIONS = {
   '/sports/create': [PERMISSIONS.SPORTS_CREATE],
   '/sports/:sportId': [PERMISSIONS.SPORTS_SHOW],
   '/sports/:sportId/edit': [PERMISSIONS.SPORTS_EDIT],
+  '/centers': [PERMISSIONS.CENTERS_VIEW],
+  '/centers/create': [PERMISSIONS.CENTERS_CREATE],
+  '/centers/:centerId': [PERMISSIONS.CENTERS_SHOW],
+  '/centers/:centerId/edit': [PERMISSIONS.CENTERS_EDIT],
+  '/centers/:centerId/areas': [PERMISSIONS.AREAS_VIEW],
+  '/centers/:centerId/areas/create': [PERMISSIONS.AREAS_CREATE],
+  '/centers/:centerId/areas/:areaId': [PERMISSIONS.AREAS_SHOW],
+  '/centers/:centerId/areas/:areaId/edit': [PERMISSIONS.AREAS_EDIT],
+  '/media': [PERMISSIONS.MEDIA_VIEW],
+  '/media/create': [PERMISSIONS.MEDIA_CREATE],
 } as const;
 
 // Navigation items with their required permissions
-export const NAVIGATION_ITEMS = [
+export const NAVIGATION_ITEMS: NavigationItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
@@ -81,6 +127,24 @@ export const NAVIGATION_ITEMS = [
     href: '/sports',
     permission: PERMISSIONS.SPORTS_VIEW,
   },
+  {
+    name: 'Centers',
+    href: '/centers',
+    permission: PERMISSIONS.CENTERS_VIEW,
+    type: 'dropdown',
+    children: [
+      {
+        name: 'All Centers',
+        href: '/centers',
+        permission: PERMISSIONS.CENTERS_VIEW,
+      },
+    ],
+  },
+  {
+    name: 'Media',
+    href: '/media',
+    permission: PERMISSIONS.MEDIA_VIEW,
+  },
 ] as const;
 
 /**
@@ -90,7 +154,6 @@ export const hasPermission = (user: User | null, permission: string): boolean =>
   if (!user || !user.role || !user.role.permissions) {
     return false;
   }
-  
   return user.role.permissions.some((perm: Permission) => 
     perm.slug === permission
   );

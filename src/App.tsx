@@ -11,6 +11,9 @@ import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from './pages
 import { RolesPage, RoleEditPage, RoleCreatePage, RoleDetailPage } from './pages/roles';
 import { PermissionsPage, PermissionCreatePage, PermissionEditPage, PermissionDetailPage } from './pages/permissions';
 import { SportsPage, SportCreatePage, SportEditPage, SportDetailPage } from './pages/sports';
+import { CentersPage, CenterCreatePage, CenterEditPage, CenterDetailPage } from './pages/centers';
+import { AreasPage, AreaCreatePage, AreaEditPage, AreaDetailPage } from './pages/areas';
+import { MediaPage, MediaCreatePage } from './pages/media';
 import Layout from './components/Layout/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { PERMISSIONS } from './utils/permissions';
@@ -152,8 +155,76 @@ const App: React.FC = () => {
                       <SportEditPage />
                     </ProtectedRoute>
                   } />
+                  
+                  {/* Centers Routes */}
+                  <Route path="centers" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.CENTERS_VIEW]}>
+                      <CentersPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.CENTERS_CREATE]}>
+                      <CenterCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/:centerId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.CENTERS_SHOW]}>
+                      <CenterDetailPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/:centerId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.CENTERS_EDIT]}>
+                      <CenterEditPage />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* Areas Routes */}
+                  <Route path="centers/:centerId/areas" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_VIEW]}>
+                      <AreasPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/:centerId/areas/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_CREATE]}>
+                      <AreaCreatePage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/:centerId/areas/:areaId" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_SHOW]}>
+                      <AreaDetailPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="centers/:centerId/areas/:areaId/edit" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_EDIT]}>
+                      <AreaEditPage />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* Media Routes */}
+                  <Route path="media" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.MEDIA_VIEW]}>
+                      <MediaPage />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="media/create" element={
+                    <ProtectedRoute requiredPermissions={[PERMISSIONS.MEDIA_CREATE]}>
+                      <MediaCreatePage />
+                    </ProtectedRoute>
+                  } />
                 </Route>
               </Route>
+              
+              {/* General Areas Routes */}
+              <Route path="areas" element={
+                <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_VIEW]}>
+                  <AreasPage />
+                </ProtectedRoute>
+              } />
+              <Route path="areas/create" element={
+                <ProtectedRoute requiredPermissions={[PERMISSIONS.AREAS_CREATE]}>
+                  <AreaCreatePage />
+                </ProtectedRoute>
+              } />
               
               {/* Catch all route */}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
