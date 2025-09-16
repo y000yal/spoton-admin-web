@@ -12,7 +12,6 @@ const UserDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
 
-  
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,31 +19,26 @@ const UserDetailPage: React.FC = () => {
   // Determine which user to display
   const targetUserId = userId ? parseInt(userId) : currentUser?.id;
   const isOwnProfile = !userId || userId === currentUser?.id?.toString();
-  
- 
 
-    useEffect(() => {
+  useEffect(() => {
     const fetchUser = async () => {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         // If it's the current user and we have their complete data, use it
-        if (isOwnProfile && currentUser && currentUser.role) {
-          console.log('Using current user data from auth context:', currentUser);
+        if (isOwnProfile && currentUser) {
           setUser(currentUser);
         } else if (targetUserId) {
           // Fetch user data from API
           const response = await userService.getUser(targetUserId);
-          
-          // The API returns the user object directly
           setUser(response);
         } else {
           setError('No user ID provided and no current user data available');
         }
       } catch (err: unknown) {
         console.error('Failed to fetch user:', err);
-        const errorMessage = err && typeof err === 'object' && 'response' in err && 
+        const errorMessage = err && typeof err === 'object' && 'response' in err &&
           err.response && typeof err.response === 'object' && 'data' in err.response &&
           err.response.data && typeof err.response.data === 'object' && 'message' in err.response.data
           ? String(err.response.data.message)
@@ -56,7 +50,7 @@ const UserDetailPage: React.FC = () => {
     };
 
     fetchUser();
-  }, [targetUserId, currentUser, isOwnProfile]);
+  }, [targetUserId, currentUser, isOwnProfile, userId]);
 
   const handleEdit = () => {
     if (user) {

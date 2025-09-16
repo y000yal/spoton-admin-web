@@ -1,26 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card } from '../../components/UI';
-import { ArrowLeft, MapPin, Upload, X } from 'lucide-react';
-import type { UpdateAreaRequest } from '../../types';
+import { Button, Card, MediaSelectionModal, SportSearchInput } from '../../components/UI';
+import { ArrowLeft, MapPin, X, Image as ImageIcon } from 'lucide-react';
+import type { UpdateAreaRequest, Sport } from '../../types';
 import { useArea, useUpdateArea } from '../../hooks/useAreas';
 import { useCenter } from '../../hooks/useCenters';
 import { useFormValidation } from '../../hooks/useFormValidation';
+import { useMedia } from '../../hooks/useMedia';
+import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
 
 const AreaEditPage: React.FC = () => {
   const navigate = useNavigate();
   const { centerId, areaId } = useParams<{ centerId: string; areaId: string }>();
+  const { hasPermission } = useDynamicPermissions();
   
   const [formData, setFormData] = useState<UpdateAreaRequest>({
     name: '',
     status: 'active',
     description: '',
-    floor: ''
+    floor: '',
+    sport_id: undefined,
+    media_ids: []
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [existingMediaIds, setExistingMediaIds] = useState<number[]>([]);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+  const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
 
   // Use the form validation hook
   const {
@@ -40,6 +46,17 @@ const AreaEditPage: React.FC = () => {
   const { data: currentArea, isLoading, error } = useArea(parseInt(centerId || '0'), parseInt(areaId || '0'));
   const { data: center } = useCenter(parseInt(centerId || '0'));
   const updateAreaMutation = useUpdateArea();
+  
+  // Fetch all media and filter by selected IDs
+  const { data: allMediaData } = useMedia({
+    page: 1,
+    limit: 1000 // Get a large number to ensure we have all media
+  });
+  
+  // Filter media by selected IDs
+  const selectedMediaData = allMediaData?.data?.filter(media => 
+    selectedMediaIds.includes(media.id)
+  ) || [];
 
   // Update form data when area is loaded
   useEffect(() => {
@@ -48,13 +65,23 @@ const AreaEditPage: React.FC = () => {
         name: currentArea.name || '',
         status: currentArea.status || 'active',
         description: currentArea.description || '',
-        floor: currentArea.floor || ''
+        floor: currentArea.floor || '',
+        sport_id: currentArea.sport_id
       });
       
-      // Set existing media
+      // Set existing sport if available
+      if (currentArea.sport) {
+        setSelectedSport(currentArea.sport);
+      }
+      
+      // Set existing media if available
       if (currentArea.media && currentArea.media.length > 0) {
-        setImagePreviews(currentArea.media.map(media => media.url));
-        setExistingMediaIds(currentArea.media.map(media => media.id));
+        const mediaIds = currentArea.media.map(media => media.media_id);
+        setSelectedMediaIds(mediaIds);
+        setFormData(prev => ({
+          ...prev,
+          media_ids: mediaIds
+        }));
       }
     }
   }, [currentArea]);
@@ -70,65 +97,31 @@ const AreaEditPage: React.FC = () => {
     clearFieldError(name);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      // Validate file types
-      const invalidFiles = files.filter(file => !file.type.startsWith('image/'));
-      if (invalidFiles.length > 0) {
-        setClientErrors({ images: 'Please select valid image files only' });
-        return;
-      }
-
-      // Validate file sizes (5MB limit per file)
-      const oversizedFiles = files.filter(file => file.size > 5 * 1024 * 1024);
-      if (oversizedFiles.length > 0) {
-        setClientErrors({ images: 'Image size must be less than 5MB per file' });
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...(prev.images || []), ...files]
-      }));
-
-      // Create previews
-      const newPreviews: string[] = [];
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newPreviews.push(e.target?.result as string);
-          if (newPreviews.length === files.length) {
-            setImagePreviews(prev => [...prev, ...newPreviews]);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Clear any existing validation error
-      clearFieldError('images');
-    }
+  const handleSportSelect = (sport: Sport | null) => {
+    setSelectedSport(sport);
+    setFormData(prev => ({
+      ...prev,
+      sport_id: sport?.id
+    }));
+    clearFieldError('sport_id');
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    
-    // If removing an existing image, remove from media_ids
-    if (index < existingMediaIds.length) {
-      const newMediaIds = existingMediaIds.filter((_, i) => i !== index);
-      setExistingMediaIds(newMediaIds);
-      setFormData(prev => ({
-        ...prev,
-        media_ids: newMediaIds
-      }));
-    } else {
-      // If removing a new image, remove from images array
-      const newImageIndex = index - existingMediaIds.length;
-      setFormData(prev => ({
-        ...prev,
-        images: prev.images?.filter((_, i) => i !== newImageIndex) || []
-      }));
-    }
+  const handleMediaSelect = (mediaIds: number[]) => {
+    setSelectedMediaIds(mediaIds);
+    setFormData(prev => ({
+      ...prev,
+      media_ids: mediaIds
+    }));
+    console.log('Selected media IDs:', mediaIds);
+  };
+
+  const handleRemoveMedia = (mediaId: number) => {
+    const newMediaIds = selectedMediaIds.filter(id => id !== mediaId);
+    setSelectedMediaIds(newMediaIds);
+    setFormData(prev => ({
+      ...prev,
+      media_ids: newMediaIds
+    }));
   };
 
   const validateForm = (): boolean => {
@@ -158,7 +151,7 @@ const AreaEditPage: React.FC = () => {
         areaId: parseInt(areaId),
         areaData: {
           ...formData,
-          media_ids: existingMediaIds
+          media_ids: selectedMediaIds
         }
       });
       navigate(`/centers/${centerId}/areas`);
@@ -173,6 +166,22 @@ const AreaEditPage: React.FC = () => {
   const handleCancel = () => {
     navigate(`/centers/${centerId}/areas`);
   };
+
+  // Check if user has permission to update areas
+  if (!hasPermission('area-update')) {
+    return (
+      <div className="text-center py-12">
+        <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Access Denied</h3>
+        <p className="mt-1 text-sm text-gray-500">You don't have permission to edit areas.</p>
+        <div className="mt-6">
+          <Button onClick={() => navigate(`/centers/${centerId}/areas`)}>
+            Back to Areas
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -307,6 +316,21 @@ const AreaEditPage: React.FC = () => {
                   )}
                 </div>
 
+                <div>
+                  <label htmlFor="sport" className="block text-sm font-medium text-gray-700 mb-2">
+                    Sport
+                  </label>
+                  <SportSearchInput
+                    selectedSport={selectedSport}
+                    onSportSelect={handleSportSelect}
+                    placeholder="Search for a sport..."
+                    disabled={isSubmitting}
+                  />
+                  {getFieldError('sport_id') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('sport_id')}</p>
+                  )}
+                </div>
+
                 {errors.submit && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{errors.submit}</p>
@@ -345,57 +369,43 @@ const AreaEditPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Image Upload Section */}
+        {/* Media Selection Section */}
         <div className="lg:col-span-1">
           <Card>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Area Images
-              </label>
-              
-              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                hasFieldError('images') 
-                  ? 'border-red-500 hover:border-red-600' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}>
-                <input
-                  type="file"
-                  id="images"
-                  name="images"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="images"
-                  className="cursor-pointer flex flex-col items-center space-y-2"
-                >
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    Click to upload more images
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 5MB each
-                  </span>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Area Images
                 </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMediaModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Select Images</span>
+                </Button>
               </div>
 
-              {imagePreviews.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Current Images:</p>
+              {/* Selected Images Preview */}
+              {selectedMediaData && selectedMediaData.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">
+                    Selected Images ({selectedMediaData.length}):
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative">
+                    {selectedMediaData.map((media) => (
+                      <div key={media.id} className="relative group">
                         <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
+                          src={media.url}
+                          alt={media.title || `Media ${media.id}`}
                           className="w-full h-24 object-cover rounded border border-gray-300"
                         />
                         <button
                           type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                          onClick={() => handleRemoveMedia(media.id)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -404,14 +414,29 @@ const AreaEditPage: React.FC = () => {
                   </div>
                 </div>
               )}
-              
-              {getFieldError('images') && (
-                <p className="mt-2 text-sm text-red-600">{getFieldError('images')}</p>
+
+              {(!selectedMediaData || selectedMediaData.length === 0) && (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No images selected</p>
+                  <p className="text-xs text-gray-400">Click "Select Images" to choose media</p>
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      <MediaSelectionModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        selectedMediaIds={selectedMediaIds}
+        selectionMode="multiple"
+        allowAddNew={true}
+        title="Select Area Images"
+      />
     </div>
   );
 };

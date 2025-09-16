@@ -1,4 +1,9 @@
 import type { User, Permission } from '../types';
+import { 
+  hasPermission as dynamicHasPermission,
+  hasAnyPermission as dynamicHasAnyPermission,
+  hasAllPermissions as dynamicHasAllPermissions
+} from './dynamicPermissions';
 
 // Navigation item types
 export interface NavigationItem {
@@ -15,170 +20,37 @@ export interface NavigationChild {
   permission: string;
 }
 
-// Permission constants - these match your backend permission slugs
-export const PERMISSIONS = {
-  // Dashboard permissions (assuming you'll add these)
-  DASHBOARD_VIEW: 'dashboard-index',
-  
-  // User management permissions
-  USERS_VIEW: 'user-index',
-  USERS_CREATE: 'user-store',
-  USERS_EDIT: 'user-update',
-  USERS_DELETE: 'user-destroy',
-  USERS_SHOW: 'user-show',
-  
-  // Role management permissions
-  ROLES_VIEW: 'roles-index',
-  ROLES_CREATE: 'roles-store',
-  ROLES_EDIT: 'roles-update',
-  ROLES_DELETE: 'roles-destroy',
-  ROLES_SHOW: 'roles-show',
-  ROLES_GET_PERMISSIONS: 'roles-getpermissions',
-  ROLES_SYNC_PERMISSIONS: 'roles-syncpermissions',
-  
-  // Permission management permissions
-  PERMISSIONS_VIEW: 'permissions-index',
-  PERMISSIONS_CREATE: 'permissions-store',
-  PERMISSIONS_EDIT: 'permissions-update',
-  PERMISSIONS_DELETE: 'permissions-destroy',
-  PERMISSIONS_SHOW: 'permissions-show',
-  
-  // Sports management permissions
-  SPORTS_VIEW: 'sport-index',
-  SPORTS_CREATE: 'sport-store',
-  SPORTS_EDIT: 'sport-update',
-  SPORTS_DELETE: 'sport-destroy',
-  SPORTS_SHOW: 'sport-show',
-  
-  // Centers management permissions
-  CENTERS_VIEW: 'center-index',
-  CENTERS_CREATE: 'center-store',
-  CENTERS_EDIT: 'center-update',
-  CENTERS_DELETE: 'center-destroy',
-  CENTERS_SHOW: 'center-show',
-  
-  // Areas management permissions
-  AREAS_VIEW: 'area-index',
-  AREAS_CREATE: 'area-store',
-  AREAS_EDIT: 'area-update',
-  AREAS_DELETE: 'area-destroy',
-  AREAS_SHOW: 'area-show',
-  
-  // Media management permissions
-  MEDIA_VIEW: 'media-index',
-  MEDIA_CREATE: 'media-store',
-  MEDIA_EDIT: 'media-update',
-  MEDIA_DELETE: 'media-destroy',
-  MEDIA_SHOW: 'media-show',
-} as const;
+// Note: PERMISSIONS constant has been removed and replaced with dynamic permissions
+// Use useDynamicPermissionsConstants() hook to get permissions from API
 
-// Route to permission mapping
-export const ROUTE_PERMISSIONS = {
-  '/dashboard': [PERMISSIONS.DASHBOARD_VIEW],
-  '/users': [PERMISSIONS.USERS_VIEW],
-  '/users/create': [PERMISSIONS.USERS_CREATE],
-  '/users/:userId': [PERMISSIONS.USERS_SHOW],
-  '/users/:userId/edit': [PERMISSIONS.USERS_EDIT],
-  '/roles': [PERMISSIONS.ROLES_VIEW],
-  '/roles/create': [PERMISSIONS.ROLES_CREATE],
-  '/roles/:roleId/edit': [PERMISSIONS.ROLES_EDIT],
-  '/permissions': [PERMISSIONS.PERMISSIONS_VIEW],
-  '/permissions/:permissionId/edit': [PERMISSIONS.PERMISSIONS_EDIT],
-  '/sports': [PERMISSIONS.SPORTS_VIEW],
-  '/sports/create': [PERMISSIONS.SPORTS_CREATE],
-  '/sports/:sportId': [PERMISSIONS.SPORTS_SHOW],
-  '/sports/:sportId/edit': [PERMISSIONS.SPORTS_EDIT],
-  '/centers': [PERMISSIONS.CENTERS_VIEW],
-  '/centers/create': [PERMISSIONS.CENTERS_CREATE],
-  '/centers/:centerId': [PERMISSIONS.CENTERS_SHOW],
-  '/centers/:centerId/edit': [PERMISSIONS.CENTERS_EDIT],
-  '/centers/:centerId/areas': [PERMISSIONS.AREAS_VIEW],
-  '/centers/:centerId/areas/create': [PERMISSIONS.AREAS_CREATE],
-  '/centers/:centerId/areas/:areaId': [PERMISSIONS.AREAS_SHOW],
-  '/centers/:centerId/areas/:areaId/edit': [PERMISSIONS.AREAS_EDIT],
-  '/media': [PERMISSIONS.MEDIA_VIEW],
-  '/media/create': [PERMISSIONS.MEDIA_CREATE],
-} as const;
+// Note: ROUTE_PERMISSIONS constant has been removed and replaced with dynamic permissions
+// Use useDynamicRoutePermissions() hook to get route permissions from API
 
-// Navigation items with their required permissions
-export const NAVIGATION_ITEMS: NavigationItem[] = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    permission: PERMISSIONS.DASHBOARD_VIEW,
-  },
-  {
-    name: 'Users',
-    href: '/users',
-    permission: PERMISSIONS.USERS_VIEW,
-  },
-  {
-    name: 'Roles',
-    href: '/roles',
-    permission: PERMISSIONS.ROLES_VIEW,
-  },
-  {
-    name: 'Permissions',
-    href: '/permissions',
-    permission: PERMISSIONS.PERMISSIONS_VIEW,
-  },
-  {
-    name: 'Sports',
-    href: '/sports',
-    permission: PERMISSIONS.SPORTS_VIEW,
-  },
-  {
-    name: 'Centers',
-    href: '/centers',
-    permission: PERMISSIONS.CENTERS_VIEW,
-    type: 'dropdown',
-    children: [
-      {
-        name: 'All Centers',
-        href: '/centers',
-        permission: PERMISSIONS.CENTERS_VIEW,
-      },
-    ],
-  },
-  {
-    name: 'Media',
-    href: '/media',
-    permission: PERMISSIONS.MEDIA_VIEW,
-  },
-] as const;
+// Note: NAVIGATION_ITEMS constant has been removed and replaced with dynamic permissions
+// Use useDynamicNavigationItems() hook to get navigation items from API
 
 /**
  * Check if user has a specific permission
+ * Uses dynamic permission checking as fallback
  */
 export const hasPermission = (user: User | null, permission: string): boolean => {
-  if (!user || !user.role || !user.role.permissions) {
-    return false;
-  }
-  return user.role.permissions.some((perm: Permission) => 
-    perm.slug === permission
-  );
+  return dynamicHasPermission(user, permission);
 };
 
 /**
  * Check if user has any of the specified permissions
+ * Uses dynamic permission checking as fallback
  */
 export const hasAnyPermission = (user: User | null, permissions: string[]): boolean => {
-  if (!user || !user.role || !user.role.permissions) {
-    return false;
-  }
-  
-  return permissions.some(permission => hasPermission(user, permission));
+  return dynamicHasAnyPermission(user, permissions);
 };
 
 /**
  * Check if user has all of the specified permissions
+ * Uses dynamic permission checking as fallback
  */
 export const hasAllPermissions = (user: User | null, permissions: string[]): boolean => {
-  if (!user || !user.role || !user.role.permissions) {
-    return false;
-  }
-  
-  return permissions.every(permission => hasPermission(user, permission));
+  return dynamicHasAllPermissions(user, permissions);
 };
 
 /**
@@ -194,13 +66,19 @@ export const getUserPermissions = (user: User | null): string[] => {
 
 /**
  * Check if user can access a specific route
+ * Note: This function now requires route permissions to be passed as parameter
+ * Use useDynamicRoutePermissions() hook to get route permissions from API
  */
-export const canAccessRoute = (user: User | null, route: string): boolean => {
+export const canAccessRoute = (user: User | null, route: string, routePermissions?: Record<string, string[]>) => {
+  if (!routePermissions) {
+    // If no route permissions provided, use dynamic permission checking as fallback
+    return dynamicHasPermission(user, route);
+  }
+  
   // Handle dynamic routes by converting them to a pattern
   const normalizedRoute = route.replace(/\/\d+/g, '/:id').replace(/\/[^/]+$/g, '/:id');
   
-  const requiredPermissions = ROUTE_PERMISSIONS[route as keyof typeof ROUTE_PERMISSIONS] ||
-                             ROUTE_PERMISSIONS[normalizedRoute as keyof typeof ROUTE_PERMISSIONS];
+  const requiredPermissions = routePermissions[route] || routePermissions[normalizedRoute];
   
   if (!requiredPermissions) {
     // If no permissions defined for route, allow access (for backward compatibility)
@@ -212,9 +90,28 @@ export const canAccessRoute = (user: User | null, route: string): boolean => {
 
 /**
  * Filter navigation items based on user permissions
+ * Note: This function now requires navigation items to be passed as parameter
+ * Use useDynamicNavigationItems() hook to get navigation items from API
  */
-export const getFilteredNavigationItems = (user: User | null) => {
-  return NAVIGATION_ITEMS.filter(item => hasPermission(user, item.permission));
+export const getFilteredNavigationItems = (user: User | null, navigationItems: NavigationItem[]) => {
+  return navigationItems
+    .filter(item => hasPermission(user, item.permission))
+    .map(item => {
+      if (item.type === 'dropdown' && item.children) {
+        return {
+          ...item,
+          children: item.children.filter(child => hasPermission(user, child.permission))
+        };
+      }
+      return item;
+    })
+    .filter(item => {
+      // If it's a dropdown with no visible children, hide the parent too
+      if (item.type === 'dropdown' && item.children) {
+        return item.children.length > 0;
+      }
+      return true;
+    });
 };
 
 /**

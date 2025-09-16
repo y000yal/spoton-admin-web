@@ -5,7 +5,7 @@ import GroupedPermissionsList from '../../components/GroupedPermissionsList';
 import { ArrowLeft, Save, X, Key, RefreshCw } from 'lucide-react';
 import type { CreateRoleRequest } from '../../types';
 import { useCreateRole } from '../../hooks/useRoles';
-import { usePermissions } from '../../hooks/usePermissions';
+import { usePermissionsData } from '../../hooks/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 
 const RoleCreatePage: React.FC = () => {
@@ -13,7 +13,7 @@ const RoleCreatePage: React.FC = () => {
   
   // React Query hooks
   const createRoleMutation = useCreateRole();
-  const { data: permissionsData } = usePermissions({ page: 1, limit: 1000 });
+  const { data: permissionsData } = usePermissionsData({ page: 1, limit: 1000 });
   const permissions = permissionsData?.data || [];
   const queryClient = useQueryClient();
 

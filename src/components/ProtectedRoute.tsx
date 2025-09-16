@@ -1,7 +1,8 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { canAccessRoute } from '../utils/permissions';
+import { useDynamicPermissions } from '../hooks/useDynamicPermissions';
+import { hasAnyPermission, canAccessRoute } from '../utils/dynamicPermissions';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -19,10 +20,16 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   fallbackPath = '/dashboard' 
 }) => {
   const { user, isAuthenticated, isLoading } = useAuth();
+  const { isLoading: permissionsLoading } = useDynamicPermissions();
   const location = useLocation();
 
-  // Show loading state while checking authentication
-  if (isLoading) {
+  // Redirect to login if not authenticated (check this first)
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Show loading state while checking permissions (only if authenticated)
+  if (isLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -33,28 +40,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     );
   }
 
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // If no specific permissions required, allow access
-  if (requiredPermissions.length === 0) {
-    return <>{children}</>;
-  }
-
-  // Check if user can access the current route
+  // Check if user can access the current route using dynamic permissions
   const canAccess = canAccessRoute(user, location.pathname);
-
-  // Also check specific required permissions if provided
+  
+  // Check specific required permissions if provided
   const hasRequiredPermissions = requiredPermissions.length === 0 || 
-    requiredPermissions.some(permission => {
-     
-      if (!user || !user.role || !user.role.permissions) {
-        return false;
-      }
-      return user.role.permissions.some((perm: any) => perm.slug === permission);
-    });
+    hasAnyPermission(user, requiredPermissions);
+
 
   // If user doesn't have required permissions, redirect to fallback
   if (!canAccess || !hasRequiredPermissions) {

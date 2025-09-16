@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card } from '../../components/UI';
-import { ArrowLeft, Building2, Upload, X } from 'lucide-react';
-import type { UpdateCenterRequest } from '../../types';
+import { Button, Card, MediaSelectionModal } from '../../components/UI';
+import { ArrowLeft, Building2, X, Image as ImageIcon } from 'lucide-react';
+import type { UpdateCenterRequest, User as UserType, Country } from '../../types';
 import { useCenter, useUpdateCenter } from '../../hooks/useCenters';
 import { useFormValidation } from '../../hooks/useFormValidation';
+import { useMedia } from '../../hooks/useMedia';
+import { useAuth } from '../../hooks/useAuth';
+import UserSearchInput from '../../components/UserSearchInput';
+import CountrySearchInput from '../../components/CountrySearchInput';
 
 const CenterEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,19 +21,20 @@ const CenterEditPage: React.FC = () => {
     address: '',
     longitude: 0,
     latitude: 0,
-    status: 'active'
+    status: 'active',
+    media_ids: []
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [existingMediaIds, setExistingMediaIds] = useState<number[]>([]);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
 
   // Use the form validation hook
   const {
     errors,
-    validationErrors,
     clearFieldError,
-    setClientErrors,
     handleApiError,
     getFieldError,
     hasFieldError,
@@ -38,9 +43,24 @@ const CenterEditPage: React.FC = () => {
   // Refs to track API calls and prevent duplicates
   const isSubmittingRef = useRef(false);
 
+  // Auth and permissions
+  const { user } = useAuth();
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
+
   // React Query hooks
-  const { data: currentCenter, isLoading, error } = useCenter(parseInt(centerId || '0'));
+  const { data: currentCenter, isLoading } = useCenter(parseInt(centerId || '0'));
   const updateCenterMutation = useUpdateCenter();
+  
+  // Fetch all media and filter by selected IDs
+  const { data: allMediaData } = useMedia({
+    page: 1,
+    limit: 1000 // Get a large number to ensure we have all media
+  });
+  
+  // Filter media by selected IDs
+  const selectedMediaData = allMediaData?.data?.filter(media => 
+    selectedMediaIds.includes(media.id)
+  ) || [];
 
   // Update form data when center is loaded
   useEffect(() => {
@@ -52,13 +72,41 @@ const CenterEditPage: React.FC = () => {
         address: currentCenter.address || '',
         longitude: currentCenter.longitude || 0,
         latitude: currentCenter.latitude || 0,
-        status: currentCenter.status || 'active'
+        status: currentCenter.status || 'active',
+        user_id: currentCenter.user_id
       });
       
-      // Set existing media
+      // Set existing country if available
+      if (currentCenter.country) {
+        setSelectedCountry(currentCenter.country);
+      }
+      
+      // Set existing user if available
+      if (currentCenter.user) {
+        // Convert the center's user object to match our User type
+        const userData: UserType = {
+          id: currentCenter.user.id,
+          full_name: currentCenter.user.full_name,
+          username: null,
+          email: currentCenter.user.email,
+          email_verified_at: null,
+          status: currentCenter.user.status,
+          created_at: '',
+          updated_at: null,
+          role_id: undefined,
+          role: undefined
+        };
+        setSelectedUser(userData);
+      }
+      
+      // Set existing media if available
       if (currentCenter.media && currentCenter.media.length > 0) {
-        setImagePreviews(currentCenter.media.map(media => media.url));
-        setExistingMediaIds(currentCenter.media.map(media => media.id));
+        const mediaIds = currentCenter.media.map(media => media.media_id);
+        setSelectedMediaIds(mediaIds);
+        setFormData(prev => ({
+          ...prev,
+          media_ids: mediaIds
+        }));
       }
     }
   }, [currentCenter]);
@@ -76,72 +124,45 @@ const CenterEditPage: React.FC = () => {
     clearFieldError(name);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      // Validate file types
-      const invalidFiles = files.filter(file => !file.type.startsWith('image/'));
-      if (invalidFiles.length > 0) {
-        setClientErrors({ images: 'Please select valid image files only' });
-        return;
-      }
-
-      // Validate file sizes (5MB limit per file)
-      const oversizedFiles = files.filter(file => file.size > 5 * 1024 * 1024);
-      if (oversizedFiles.length > 0) {
-        setClientErrors({ images: 'Image size must be less than 5MB per file' });
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...(prev.images || []), ...files]
-      }));
-
-      // Create previews
-      const newPreviews: string[] = [];
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newPreviews.push(e.target?.result as string);
-          if (newPreviews.length === files.length) {
-            setImagePreviews(prev => [...prev, ...newPreviews]);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Clear any existing validation error
-      clearFieldError('images');
-    }
+  const handleMediaSelect = (mediaIds: number[]) => {
+    setSelectedMediaIds(mediaIds);
+    setFormData(prev => ({
+      ...prev,
+      media_ids: mediaIds
+    }));
+    console.log('Selected media IDs:', mediaIds);
   };
 
-  const handleRemoveImage = (index: number) => {
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
-    
-    // If removing an existing image, remove from media_ids
-    if (index < existingMediaIds.length) {
-      const newMediaIds = existingMediaIds.filter((_, i) => i !== index);
-      setExistingMediaIds(newMediaIds);
-      setFormData(prev => ({
-        ...prev,
-        media_ids: newMediaIds
-      }));
-    } else {
-      // If removing a new image, remove from images array
-      const newImageIndex = index - existingMediaIds.length;
-      setFormData(prev => ({
-        ...prev,
-        images: prev.images?.filter((_, i) => i !== newImageIndex) || []
-      }));
-    }
+  const handleUserSelect = (selectedUser: UserType | null) => {
+    setSelectedUser(selectedUser);
+    setFormData(prev => ({
+      ...prev,
+      user_id: selectedUser?.id || user?.id
+    }));
+  };
+
+  const handleCountrySelect = (selectedCountry: Country | null) => {
+    setSelectedCountry(selectedCountry);
+    setFormData(prev => ({
+      ...prev,
+      country_id: selectedCountry?.id || 0
+    }));
+  };
+
+  const handleRemoveMedia = (mediaId: number) => {
+    const newMediaIds = selectedMediaIds.filter(id => id !== mediaId);
+    setSelectedMediaIds(newMediaIds);
+    setFormData(prev => ({
+      ...prev,
+      media_ids: newMediaIds
+    }));
   };
 
   const validateForm = (): boolean => {
-    return formData.name?.trim().length > 0 && 
-           formData.country_id > 0 && 
-           formData.address?.trim().length > 0 &&
-           formData.status?.length > 0;
+    return (formData.name?.trim().length || 0) > 0 && 
+           (formData.country_id || 0) > 0 && 
+           (formData.address?.trim().length || 0) > 0 &&
+           (formData.status?.length || 0) > 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,12 +181,15 @@ const CenterEditPage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
+      const submitData = {
+        ...formData,
+        media_ids: selectedMediaIds,
+        user_id: isAdmin ? (selectedUser?.id || user?.id) : user?.id
+      };
+
       await updateCenterMutation.mutateAsync({ 
         centerId: parseInt(centerId), 
-        centerData: {
-          ...formData,
-          media_ids: existingMediaIds
-        }
+        centerData: submitData
       });
       navigate('/centers');
     } catch (error: unknown) {
@@ -247,19 +271,13 @@ const CenterEditPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="country_id" className="block text-sm font-medium text-gray-700 mb-2">
-                      Country ID <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="number"
-                      id="country_id"
-                      name="country_id"
-                      value={formData.country_id || 0}
-                      onChange={handleInputChange}
-                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        hasFieldError('country_id') ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter country ID"
+                    <CountrySearchInput
+                      selectedCountry={selectedCountry}
+                      onCountrySelect={handleCountrySelect}
+                      placeholder="Search countries..."
                     />
                     {getFieldError('country_id') && (
                       <p className="mt-1 text-sm text-red-600">{getFieldError('country_id')}</p>
@@ -372,6 +390,23 @@ const CenterEditPage: React.FC = () => {
                   )}
                 </div>
 
+                {/* User Selection - Only for Admins */}
+                {isAdmin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign to User
+                    </label>
+                    <UserSearchInput
+                      selectedUser={selectedUser}
+                      onUserSelect={handleUserSelect}
+                      placeholder="Search users to assign this center..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Leave empty to assign to yourself
+                    </p>
+                  </div>
+                )}
+
                 {errors.submit && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{errors.submit}</p>
@@ -410,57 +445,43 @@ const CenterEditPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Image Upload Section */}
+        {/* Media Selection Section */}
         <div className="lg:col-span-1">
           <Card>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Center Images
-              </label>
-              
-              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                hasFieldError('images') 
-                  ? 'border-red-500 hover:border-red-600' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}>
-                <input
-                  type="file"
-                  id="images"
-                  name="images"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="images"
-                  className="cursor-pointer flex flex-col items-center space-y-2"
-                >
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    Click to upload more images
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 5MB each
-                  </span>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Center Images
                 </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMediaModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Select Images</span>
+                </Button>
               </div>
 
-              {imagePreviews.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Current Images:</p>
+              {/* Selected Images Preview */}
+              {selectedMediaData && selectedMediaData.length > 0 && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">
+                    Selected Images ({selectedMediaData.length}):
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative">
+                    {selectedMediaData.map((media) => (
+                      <div key={media.id} className="relative group">
                         <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
+                          src={media.url}
+                          alt={media.title || `Media ${media.id}`}
                           className="w-full h-24 object-cover rounded border border-gray-300"
                         />
                         <button
                           type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                          onClick={() => handleRemoveMedia(media.id)}
+                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -469,14 +490,29 @@ const CenterEditPage: React.FC = () => {
                   </div>
                 </div>
               )}
-              
-              {getFieldError('images') && (
-                <p className="mt-2 text-sm text-red-600">{getFieldError('images')}</p>
+
+              {(!selectedMediaData || selectedMediaData.length === 0) && (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No images selected</p>
+                  <p className="text-xs text-gray-400">Click "Select Images" to choose media</p>
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      <MediaSelectionModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        selectedMediaIds={selectedMediaIds}
+        selectionMode="multiple"
+        allowAddNew={true}
+        title="Select Center Images"
+      />
     </div>
   );
 };

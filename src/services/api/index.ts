@@ -7,6 +7,7 @@ export { sportService } from './sports';
 export { centerService } from './centers';
 export { areaService } from './areas';
 export { mediaService } from './media';
+export { countryService } from './countries';
 
 // Export service classes for advanced usage
 export { AuthService } from './auth';
@@ -17,6 +18,7 @@ export { SportService } from './sports';
 export { CenterService } from './centers';
 export { AreaService } from './areas';
 export { MediaService } from './media';
+export { CountryService } from './countries';
 
 // Export types
 export type {
@@ -49,6 +51,10 @@ export type {
   AreaQueryParams
 } from './areas';
 
+export type {
+  CountryQueryParams
+} from './countries';
+
 // Media types are imported from types/index.ts
 
 // Legacy export for backward compatibility
@@ -60,6 +66,7 @@ import { sportService } from './sports';
 import { centerService } from './centers';
 import { areaService } from './areas';
 import { mediaService } from './media';
+import { countryService } from './countries';
 
 // Create a legacy apiService object that maintains the old interface
 export const apiService = {

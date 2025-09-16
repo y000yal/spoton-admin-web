@@ -10,12 +10,13 @@ import {
   Globe,
   Camera,
   Building2,
-  MapPin,
   ChevronDown,
   ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { getFilteredNavigationItems } from '../../utils/permissions';
+import { useDynamicNavigationItems } from '../../hooks/useDynamicPermissionsConstants';
+import DynamicPermissionGate from '../DynamicPermissionGate';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -70,14 +71,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
     };
   }, [shouldShowBackdrop, isDesktop, isCollapsed, onToggle]);
 
-  // Get filtered navigation items based on user permissions
-  const filteredNavigationItems = getFilteredNavigationItems(user);
+  // Get dynamic navigation items from API
+  const navigationItems = useDynamicNavigationItems();
+  const filteredNavigationItems = getFilteredNavigationItems(user, navigationItems);
   
   
   
   // Map navigation items to include icons and dropdown support
   const iconMap = {
     'Dashboard': Home,
+    'User Management': Users,
     'Users': Users,
     'Roles': Shield,
     'Permissions': Key,
@@ -85,7 +88,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
     'Countries': Globe,
     'Media': Camera,
     'Centers': Building2,
-    'Areas': MapPin,
   };
 
   // Enhanced navigation structure with dropdown support
@@ -178,7 +180,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
 
         {/* Desktop toggle button - positioned at right edge of sidebar like a flag */}
         {isDesktop && (
-          <div className="absolute top-20" style={{ right: '-24px', zIndex: 9999 }}> 
+          <div className="absolute top-5" style={{ right: '-24px', zIndex: 9999 }}> 
             <button
               onClick={onCollapseToggle}
               className={`
@@ -233,131 +235,135 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, onToggle, onColl
               
               if (item.type === 'dropdown') {
                 return (
-                  <div key={item.name} className="relative group">
-                    <button
-                      onClick={() => !isCollapsed && toggleExpanded(item.name)}
-                      className={`
-                        group flex items-center px-3 py-3 text-sm font-medium rounded-lg 
-                        transition-all duration-200 ease-out
-                        ${isCollapsed ? 'justify-center' : ''}
-                        ${isActive
-                          ? 'bg-primary-100 text-primary-700 border-r-2 border-primary-600'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                        }
-                        w-full
-                      `}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <item.icon
+                  <DynamicPermissionGate key={item.name} permission={item.permission}>
+                    <div className="relative group">
+                      <button
+                        onClick={() => !isCollapsed && toggleExpanded(item.name)}
                         className={`
-                          h-5 w-5 flex-shrink-0 transition-all duration-300 ease-out
-                          ${isCollapsed ? 'mr-0' : 'mr-3'}
-                          ${isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}
+                          group flex items-center px-3 py-3 text-sm font-medium rounded-lg 
+                          transition-all duration-200 ease-out
+                          ${isCollapsed ? 'justify-center' : ''}
+                          ${isActive
+                            ? 'bg-primary-100 text-primary-700 border-r-2 border-primary-600'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                          }
+                          w-full
                         `}
-                      />
-                      <div className={`
-                        transition-all duration-500 ease-out overflow-hidden
-                        ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-0'}
-                        flex-1 flex items-center justify-between
-                      `}>
-                        <span className="whitespace-nowrap">{item.name}</span>
-                        {!isCollapsed && (
-                          <div className="ml-2 transition-transform duration-200 ease-out">
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-gray-400" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-gray-400" />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                    
-                    {/* Dropdown children - show on hover when collapsed, on click when expanded */}
-                    {item.children && (
-                      <div className={`
-                        ${isCollapsed 
-                          ? 'absolute left-full top-0 ml-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out' 
-                          : (!isExpanded ? 'hidden' : 'ml-4 mt-1 space-y-1')
-                        }
-                      `}>
-                        <div className={isCollapsed ? 'py-2' : ''}>
-                          {item.children.map((child) => {
-                            const isChildActive = location.pathname === child.href;
-                            return (
-                              <Link
-                                key={child.name}
-                                to={child.href}
-                                className={`
-                                  group flex items-center px-3 py-2 text-sm rounded-md 
-                                  transition-all duration-200 ease-out
-                                  ${isChildActive
-                                    ? 'bg-blue-50 text-blue-700'
-                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                  }
-                                `}
-                                onClick={() => {
-                                  // Close mobile sidebar when clicking on navigation items
-                                  if (window.innerWidth < 1024 && isOpen) {
-                                    onToggle();
-                                  }
-                                }}
-                              >
-                                <child.icon
-                                  className={`
-                                    h-4 w-4 flex-shrink-0 transition-all duration-200 ease-out
-                                    mr-3
-                                    ${isChildActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'}
-                                  `}
-                                />
-                                <span className="whitespace-nowrap">{child.name}</span>
-                              </Link>
-                            );
-                          })}
+                        title={isCollapsed ? item.name : undefined}
+                      >
+                        <item.icon
+                          className={`
+                            h-5 w-5 flex-shrink-0 transition-all duration-300 ease-out
+                            ${isCollapsed ? 'mr-0' : 'mr-3'}
+                            ${isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}
+                          `}
+                        />
+                        <div className={`
+                          transition-all duration-500 ease-out overflow-hidden
+                          ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-0'}
+                          flex-1 flex items-center justify-between
+                        `}>
+                          <span className="whitespace-nowrap">{item.name}</span>
+                          {!isCollapsed && (
+                            <div className="ml-2 transition-transform duration-200 ease-out">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-gray-400" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-gray-400" />
+                              )}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      </button>
+                      
+                      {/* Dropdown children - show on hover when collapsed, on click when expanded */}
+                      {item.children && (
+                        <div className={`
+                          ${isCollapsed 
+                            ? 'absolute left-full top-0 ml-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 ease-out' 
+                            : (!isExpanded ? 'hidden' : 'ml-4 mt-1 space-y-1')
+                          }
+                        `}>
+                          <div className={isCollapsed ? 'py-2' : ''}>
+                            {item.children.map((child) => {
+                              const isChildActive = location.pathname === child.href;
+                              return (
+                                <DynamicPermissionGate key={child.name} permission={child.permission}>
+                                  <Link
+                                    to={child.href}
+                                    className={`
+                                      group flex items-center px-3 py-2 text-sm rounded-md 
+                                      transition-all duration-200 ease-out
+                                      ${isChildActive
+                                        ? 'bg-blue-50 text-blue-700'
+                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                      }
+                                    `}
+                                    onClick={() => {
+                                      // Close mobile sidebar when clicking on navigation items
+                                      if (window.innerWidth < 1024 && isOpen) {
+                                        onToggle();
+                                      }
+                                    }}
+                                  >
+                                    <child.icon
+                                      className={`
+                                        h-4 w-4 flex-shrink-0 transition-all duration-200 ease-out
+                                        mr-3
+                                        ${isChildActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-500'}
+                                      `}
+                                    />
+                                    <span className="whitespace-nowrap">{child.name}</span>
+                                  </Link>
+                                </DynamicPermissionGate>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </DynamicPermissionGate>
                 );
               }
               
               // Single navigation item
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`
-                    group flex items-center px-3 py-3 text-sm font-medium rounded-lg 
-                    transition-all duration-300 ease-out transform hover:scale-105
-                    ${isCollapsed ? 'justify-center' : ''}
-                    ${isActive
-                      ? 'bg-primary-100 text-primary-700 border-r-2 border-primary-600 shadow-sm'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm'
-                    }
-                    lg:hover:bg-gray-50
-                  `}
-                  title={isCollapsed ? item.name : undefined}
-                  onClick={() => {
-                    // Close mobile sidebar when clicking on navigation items
-                    if (window.innerWidth < 1024 && isOpen) {
-                      onToggle();
-                    }
-                  }}
-                >
-                  <item.icon
+                <DynamicPermissionGate key={item.name} permission={item.permission}>
+                  <Link
+                    to={item.href}
                     className={`
-                      h-5 w-5 flex-shrink-0 transition-all duration-300 ease-out
-                      ${isCollapsed ? 'mr-0' : 'mr-3'}
-                      ${isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}
+                      group flex items-center px-3 py-3 text-sm font-medium rounded-lg 
+                      transition-all duration-300 ease-out transform hover:scale-105
+                      ${isCollapsed ? 'justify-center' : ''}
+                      ${isActive
+                        ? 'bg-primary-100 text-primary-700 border-r-2 border-primary-600 shadow-sm'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm'
+                      }
+                      lg:hover:bg-gray-50
                     `}
-                  />
-                  <div className={`
-                    transition-all duration-500 ease-out overflow-hidden
-                    ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-0'}
-                  `}>
-                    <span className="whitespace-nowrap">{item.name}</span>
-                  </div>
-                </Link>
+                    title={isCollapsed ? item.name : undefined}
+                    onClick={() => {
+                      // Close mobile sidebar when clicking on navigation items
+                      if (window.innerWidth < 1024 && isOpen) {
+                        onToggle();
+                      }
+                    }}
+                  >
+                    <item.icon
+                      className={`
+                        h-5 w-5 flex-shrink-0 transition-all duration-300 ease-out
+                        ${isCollapsed ? 'mr-0' : 'mr-3'}
+                        ${isActive ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-500'}
+                      `}
+                    />
+                    <div className={`
+                      transition-all duration-500 ease-out overflow-hidden
+                      ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'w-auto opacity-100 ml-0'}
+                    `}>
+                      <span className="whitespace-nowrap">{item.name}</span>
+                    </div>
+                  </Link>
+                </DynamicPermissionGate>
               );
             })}
           </div>

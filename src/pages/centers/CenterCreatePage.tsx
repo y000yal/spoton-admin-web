@@ -1,11 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Card } from '../../components/UI';
-import { ArrowLeft, Building2, Upload, X } from 'lucide-react';
-import type { CreateCenterRequest } from '../../types';
+import { Button, Card, MediaSelectionModal } from '../../components/UI';
+import { ArrowLeft, Building2, Image as ImageIcon } from 'lucide-react';
+import type { CreateCenterRequest, User as UserType, Country } from '../../types';
 import { useCreateCenter } from '../../hooks/useCenters';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormValidation } from '../../hooks/useFormValidation';
+import { useAuth } from '../../hooks/useAuth';
+import UserSearchInput from '../../components/UserSearchInput';
+import CountrySearchInput from '../../components/CountrySearchInput';
 
 const CenterCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,18 +20,20 @@ const CenterCreatePage: React.FC = () => {
     address: '',
     longitude: 0,
     latitude: 0,
-    status: 'active'
+    status: 'active',
+    media_ids: []
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+  const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
+  const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
   
   // Use the form validation hook
   const {
     errors,
-    validationErrors,
     clearFieldError,
-    setClientErrors,
     handleApiError,
     getFieldError,
     hasFieldError,
@@ -36,6 +41,10 @@ const CenterCreatePage: React.FC = () => {
 
   // Ref to prevent duplicate form submissions
   const isSubmittingRef = useRef(false);
+
+  // Auth and permissions
+  const { user } = useAuth();
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
 
   // React Query hooks
   const createCenterMutation = useCreateCenter();
@@ -54,51 +63,27 @@ const CenterCreatePage: React.FC = () => {
     clearFieldError(name);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      // Validate file types
-      const invalidFiles = files.filter(file => !file.type.startsWith('image/'));
-      if (invalidFiles.length > 0) {
-        setClientErrors({ images: 'Please select valid image files only' });
-        return;
-      }
-
-      // Validate file sizes (5MB limit per file)
-      const oversizedFiles = files.filter(file => file.size > 5 * 1024 * 1024);
-      if (oversizedFiles.length > 0) {
-        setClientErrors({ images: 'Image size must be less than 5MB per file' });
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...(prev.images || []), ...files]
-      }));
-
-      // Create previews
-      const newPreviews: string[] = [];
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newPreviews.push(e.target?.result as string);
-          if (newPreviews.length === files.length) {
-            setImagePreviews(prev => [...prev, ...newPreviews]);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Clear any existing validation error
-      clearFieldError('images');
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  const handleMediaSelect = (mediaIds: number[]) => {
+    setSelectedMediaIds(mediaIds);
     setFormData(prev => ({
       ...prev,
-      images: prev.images?.filter((_, i) => i !== index) || []
+      media_ids: mediaIds
+    }));
+  };
+
+  const handleUserSelect = (selectedUser: UserType | null) => {
+    setSelectedUser(selectedUser);
+    setFormData(prev => ({
+      ...prev,
+      user_id: selectedUser?.id || user?.id
+    }));
+  };
+
+  const handleCountrySelect = (selectedCountry: Country | null) => {
+    setSelectedCountry(selectedCountry);
+    setFormData(prev => ({
+      ...prev,
+      country_id: selectedCountry?.id || 0
     }));
   };
 
@@ -125,7 +110,11 @@ const CenterCreatePage: React.FC = () => {
     setIsSubmitting(true);
     
     try {
-      await createCenterMutation.mutateAsync(formData);
+      const submitData = {
+        ...formData,
+        user_id: isAdmin ? (selectedUser?.id || user?.id) : user?.id
+      };
+      await createCenterMutation.mutateAsync(submitData);
       
       // Invalidate and refetch the centers list data
       await queryClient.invalidateQueries({ queryKey: ["centers"] });
@@ -143,6 +132,7 @@ const CenterCreatePage: React.FC = () => {
   const handleCancel = () => {
     navigate('/centers');
   };
+
 
   return (
     <div className="space-y-6">
@@ -188,19 +178,13 @@ const CenterCreatePage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="country_id" className="block text-sm font-medium text-gray-700 mb-2">
-                      Country ID <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Country <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="number"
-                      id="country_id"
-                      name="country_id"
-                      value={formData.country_id}
-                      onChange={handleInputChange}
-                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                        hasFieldError('country_id') ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter country ID"
+                    <CountrySearchInput
+                      selectedCountry={selectedCountry}
+                      onCountrySelect={handleCountrySelect}
+                      placeholder="Search countries..."
                     />
                     {getFieldError('country_id') && (
                       <p className="mt-1 text-sm text-red-600">{getFieldError('country_id')}</p>
@@ -313,6 +297,23 @@ const CenterCreatePage: React.FC = () => {
                   )}
                 </div>
 
+                {/* User Selection - Only for Admins */}
+                {isAdmin && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Assign to User
+                    </label>
+                    <UserSearchInput
+                      selectedUser={selectedUser}
+                      onUserSelect={handleUserSelect}
+                      placeholder="Search users to assign this center..."
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Leave empty to assign to yourself
+                    </p>
+                  </div>
+                )}
+
                 {errors.submit && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{errors.submit}</p>
@@ -351,73 +352,81 @@ const CenterCreatePage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Image Upload Section */}
+        {/* Media Selection Section */}
         <div className="lg:col-span-1">
           <Card>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Center Images
-              </label>
-              
-              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                hasFieldError('images') 
-                  ? 'border-red-500 hover:border-red-600' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}>
-                <input
-                  type="file"
-                  id="images"
-                  name="images"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="images"
-                  className="cursor-pointer flex flex-col items-center space-y-2"
-                >
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    Click to upload images
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 5MB each
-                  </span>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Center Images
                 </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMediaModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Select Images</span>
+                </Button>
               </div>
-
-              {imagePreviews.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Selected Images:</p>
+              
+              {selectedMediaIds.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600">
+                    {selectedMediaIds.length} image(s) selected
+                  </div>
+                  
+                  {/* Selected Images Preview */}
                   <div className="grid grid-cols-2 gap-2">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-24 object-cover rounded border border-gray-300"
-                        />
+                    {selectedMediaIds.map((mediaId) => (
+                      <div key={mediaId} className="relative group">
+                        <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-gray-400" />
+                        </div>
                         <button
                           type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                          onClick={() => {
+                            const newSelectedIds = selectedMediaIds.filter(id => id !== mediaId);
+                            setSelectedMediaIds(newSelectedIds);
+                            setFormData(prev => ({
+                              ...prev,
+                              media_ids: newSelectedIds
+                            }));
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X className="h-3 w-3" />
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-              
-              {getFieldError('images') && (
-                <p className="mt-2 text-sm text-red-600">{getFieldError('images')}</p>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No images selected</p>
+                  <p className="text-xs text-gray-400">Click "Select Images" to choose media</p>
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      <MediaSelectionModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        selectedMediaIds={selectedMediaIds}
+        selectionMode="multiple"
+        allowAddNew={true}
+        title="Select Center Images"
+      />
     </div>
   );
 };

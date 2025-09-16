@@ -1,0 +1,10 @@
+export { default as AppRoutes } from './AppRoutes';
+export { default as PublicRoutes } from './PublicRoutes';
+export { default as DashboardRoutes } from './DashboardRoutes';
+export { default as UserRoutes } from './UserRoutes';
+export { default as RoleRoutes } from './RoleRoutes';
+export { default as PermissionRoutes } from './PermissionRoutes';
+export { default as SportRoutes } from './SportRoutes';
+export { default as CenterRoutes } from './CenterRoutes';
+export { default as AreaRoutes } from './AreaRoutes';
+export { default as MediaRoutes } from './MediaRoutes';

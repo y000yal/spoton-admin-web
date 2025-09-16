@@ -13,7 +13,7 @@ import {
   PermissionGate,
   DeleteConfirmationModal,
 } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
+
 import { useMedia, useDeleteMedia, useDeleteMultipleMedia } from "../../hooks/useMedia";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "../../hooks/usePermissionCheck";
@@ -341,7 +341,7 @@ const MediaPage: React.FC = () => {
         </div>
         
         <div className="flex items-center space-x-3">
-          <PermissionGate permission={PERMISSIONS.MEDIA_CREATE}>
+          <PermissionGate permission={'media-store'}>
             <Button
               onClick={() => navigate('/media/create')}
               className="flex items-center space-x-2"
@@ -381,7 +381,7 @@ const MediaPage: React.FC = () => {
               <span className="text-sm text-gray-600">
                 {selectedItems.length} selected
               </span>
-              <PermissionGate permission={PERMISSIONS.MEDIA_DELETE}>
+              <PermissionGate permission={'media-destroy'}>
                 <Button
                   variant="outline"
                   size="sm"

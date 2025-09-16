@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card } from '../../components/UI';
 import { ArrowLeft, Shield, Edit, Trash2 } from 'lucide-react';
 import { PermissionGate } from '../../components/UI';
-import { PERMISSIONS } from '../../utils/permissions';
+
 import { usePermission, useDeletePermission } from '../../hooks/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -112,7 +112,7 @@ const PermissionDetailPage: React.FC = () => {
         </div>
         
         <div className="flex space-x-3">
-          <PermissionGate permission={PERMISSIONS.PERMISSIONS_EDIT}>
+          <PermissionGate permission={'permission-update'}>
             <Button
               onClick={handleEdit}
               className="flex items-center space-x-2"
@@ -122,7 +122,7 @@ const PermissionDetailPage: React.FC = () => {
             </Button>
           </PermissionGate>
           
-          <PermissionGate permission={PERMISSIONS.PERMISSIONS_DELETE}>
+          <PermissionGate permission={'permission-destroy'}>
             <Button
               onClick={handleDelete}
               variant="outline"

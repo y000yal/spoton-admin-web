@@ -9,6 +9,7 @@ interface MediaListProps {
   onSelectAll: () => void;
   onPreview: (media: Media) => void;
   isLoading?: boolean;
+  selectionMode?: 'single' | 'multiple';
 }
 
 const MediaList: React.FC<MediaListProps> = ({
@@ -18,6 +19,7 @@ const MediaList: React.FC<MediaListProps> = ({
   onSelectAll,
   onPreview,
   isLoading = false,
+  selectionMode = 'multiple',
 }) => {
   const allSelected = media.length > 0 && selectedItems.length === media.length;
   const someSelected = selectedItems.length > 0 && selectedItems.length < media.length;
@@ -59,29 +61,31 @@ const MediaList: React.FC<MediaListProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Select All Header */}
-      <div className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={onSelectAll}
-            className={`flex items-center justify-center w-5 h-5 rounded border-2 transition-colors ${
-              allSelected
-                ? 'bg-blue-600 border-blue-600 text-white'
-                : someSelected
-                ? 'bg-blue-100 border-blue-600 text-blue-600'
-                : 'border-gray-300 hover:border-gray-400'
-            }`}
-          >
-            {allSelected && <Check className="h-3 w-3" />}
-            {someSelected && !allSelected && <Check className="h-3 w-3" />}
-          </button>
-          <span className="text-sm font-medium text-gray-700">
-            {selectedItems.length > 0
-              ? `${selectedItems.length} of ${media.length} selected`
-              : `Select all ${media.length} items`}
-          </span>
+      {/* Select All Header - Only show for multiple selection mode */}
+      {selectionMode === 'multiple' && (
+        <div className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={onSelectAll}
+              className={`flex items-center justify-center w-5 h-5 rounded border-2 transition-colors ${
+                allSelected
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : someSelected
+                  ? 'bg-blue-100 border-blue-600 text-blue-600'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {allSelected && <Check className="h-3 w-3" />}
+              {someSelected && !allSelected && <Check className="h-3 w-3" />}
+            </button>
+            <span className="text-sm font-medium text-gray-700">
+              {selectedItems.length > 0
+                ? `${selectedItems.length} of ${media.length} selected`
+                : `Select all ${media.length} items`}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Media List */}
       <div className="space-y-2">

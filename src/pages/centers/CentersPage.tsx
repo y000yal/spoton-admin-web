@@ -5,7 +5,6 @@ import {
   Edit,
   Trash2,
   Building2,
-  MoreVertical,
   Eye,
   MapPin,
 } from "lucide-react";
@@ -15,9 +14,9 @@ import {
   DataTable,
   PermissionGate,
   DeleteConfirmationModal,
-  DropdownMenu,
+  ActionButtons,
 } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
+
 import { useCenters, useDeleteCenter } from "../../hooks/useCenters";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "../../hooks/usePermissionCheck";
@@ -163,34 +162,6 @@ const CentersPage: React.FC = () => {
       render: (_: unknown, center: Center) => center?.address || 'N/A'
     },
     {
-      key: 'media',
-      header: 'Images',
-      sortable: false,
-      hideFromSearch: true,
-      render: (_: unknown, center: Center) => {
-        if (center?.media && center.media.length > 0) {
-          return (
-            <div className="flex space-x-1">
-              {center.media.slice(0, 3).map((media, index) => (
-                <img
-                  key={index}
-                  src={media.url}
-                  alt={media.title}
-                  className="w-8 h-8 object-cover rounded border border-gray-300"
-                />
-              ))}
-              {center.media.length > 3 && (
-                <div className="w-8 h-8 bg-gray-100 rounded border border-gray-300 flex items-center justify-center text-xs text-gray-500">
-                  +{center.media.length - 3}
-                </div>
-              )}
-            </div>
-          );
-        }
-        return <span className="text-gray-400 text-sm">No images</span>;
-      }
-    },
-    {
       key: 'status',
       header: 'Status',
       sortable: true,
@@ -210,42 +181,41 @@ const CentersPage: React.FC = () => {
       render: (_: unknown, center: Center) => {
         if (!center) return <div>N/A</div>;
         
+        const primaryActions = [
+          ...(hasPermission('center-show') ? [{
+            label: 'View',
+            icon: <Eye className="h-4 w-4" />,
+            onClick: () => handleViewCenter(center),
+            permission: 'center-show'
+          }] : []),
+          ...(hasPermission('center-update') ? [{
+            label: 'Edit',
+            icon: <Edit className="h-4 w-4" />,
+            onClick: () => handleEditCenter(center),
+            permission: 'center-update'
+          }] : []),
+          ...(hasPermission('area-index') ? [{
+            label: 'View Areas',
+            icon: <MapPin className="h-4 w-4" />,
+            onClick: () => handleViewAreas(center),
+            permission: 'area-index'
+          }] : []),
+          ...(hasPermission('center-destroy') ? [{
+            label: 'Delete',
+            icon: <Trash2 className="h-4 w-4" />,
+            onClick: () => handleDeleteCenter(center),
+            className: 'text-red-600 hover:text-red-700',
+            permission: 'center-destroy'
+          }] : [])
+        ];
+
         return (
-          <div className="flex justify-end relative">
-            <PermissionGate 
-              permissions={[PERMISSIONS.CENTERS_SHOW, PERMISSIONS.CENTERS_EDIT, PERMISSIONS.CENTERS_DELETE, PERMISSIONS.AREAS_VIEW]}
-              requireAll={false}
-              fallback={<div className="w-8 h-8"></div>}
-            >
-              <DropdownMenu
-                items={[
-                  ...(hasPermission(PERMISSIONS.CENTERS_SHOW) ? [{
-                    label: 'View',
-                    icon: <Eye className="h-4 w-4" />,
-                    onClick: () => handleViewCenter(center),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.AREAS_VIEW) ? [{
-                    label: 'View Areas',
-                    icon: <MapPin className="h-4 w-4" />,
-                    onClick: () => handleViewAreas(center),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.CENTERS_EDIT) ? [{
-                    label: 'Edit',
-                    icon: <Edit className="h-4 w-4" />,
-                    onClick: () => handleEditCenter(center),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.CENTERS_DELETE) ? [{
-                    label: 'Delete',
-                    icon: <Trash2 className="h-4 w-4" />,
-                    onClick: () => handleDeleteCenter(center),
-                    className: 'text-red-600 hover:text-red-700',
-                  }] : []),
-                ]}
-                trigger={<MoreVertical className="h-4 w-4" />}
-                className="overflow-visible"
-              />
-            </PermissionGate>
-          </div>
+          <ActionButtons
+            primaryActions={primaryActions}
+            permissions={['center-show', 'center-update', 'center-destroy', 'area-index']}
+            requireAll={false}
+            fallback={<div className="w-8 h-8"></div>}
+          />
         );
       }
     }
@@ -259,7 +229,7 @@ const CentersPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Centers</h1>
         </div>
         
-        <PermissionGate permission={PERMISSIONS.CENTERS_CREATE}>
+        <PermissionGate permission={'center-store'}>
           <Button
             onClick={() => navigate('/centers/create')}
             className="flex items-center space-x-2"

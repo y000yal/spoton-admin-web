@@ -154,25 +154,26 @@ export interface Sport {
   name: string;
   description: string | null;
   status: string;
-  sport_image?: string | null;
-  media_url?: string | null;
-  media_id?: number | null;
   created_at: string;
   updated_at: string | null;
+  media?: Array<{
+    media_id: number;
+    url: string;
+  }>;
 }
 
 export interface CreateSportRequest {
   name: string;
   description?: string;
   status: string;
-  sport_image?: File | string;
+  media_ids?: number[];
 }
 
 export interface UpdateSportRequest {
   name?: string;
   description?: string;
   status?: string;
-  sport_image?: File | string;
+  media_ids?: number[];
 }
 
 // Media Types
@@ -198,11 +199,16 @@ export interface Center {
   longitude: number;
   latitude: number;
   status: string;
-  media: Array<{
+  user_id?: number;
+  user?: {
     id: number;
-    title: string;
+    full_name: string;
+    email: string;
+    status: string;
+  };
+  media: Array<{
+    media_id: number;
     url: string;
-    type: string;
   }>;
   created_at: string;
   updated_at: string;
@@ -216,7 +222,8 @@ export interface CreateCenterRequest {
   longitude: number;
   latitude: number;
   status: string;
-  images?: File[];
+  media_ids?: number[];
+  user_id?: number;
 }
 
 export interface UpdateCenterRequest {
@@ -227,8 +234,8 @@ export interface UpdateCenterRequest {
   longitude?: number;
   latitude?: number;
   status?: string;
-  images?: File[];
   media_ids?: number[];
+  user_id?: number;
 }
 
 // Area Types
@@ -239,6 +246,8 @@ export interface Area {
   description: string | null;
   floor: string;
   center_id: number;
+  sport_id?: number;
+  sport?: Sport;
   media: Array<{
     id: number;
     title: string;
@@ -254,7 +263,8 @@ export interface CreateAreaRequest {
   status: string;
   description?: string;
   floor: string;
-  images?: File[];
+  sport_id?: number;
+  media_ids?: number[];
 }
 
 export interface UpdateAreaRequest {
@@ -262,7 +272,7 @@ export interface UpdateAreaRequest {
   status?: string;
   description?: string;
   floor?: string;
-  images?: File[];
+  sport_id?: number;
   media_ids?: number[];
 }
 

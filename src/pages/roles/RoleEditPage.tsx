@@ -13,7 +13,7 @@ import GroupedPermissionsList from "../../components/GroupedPermissionsList";
 import { ArrowLeft, Save, X, Key, RefreshCw } from "lucide-react";
 import type { UpdateRoleRequest, Permission, PaginatedResponse } from "../../types";
 import { useRole, useUpdateRole, useRolePermissions, useAssignRolePermissions } from "../../hooks/useRoles";
-import { usePermissions } from "../../hooks/usePermissions";
+import { usePermissionsData } from "../../hooks/usePermissions";
 import { useToast } from "../../contexts/ToastContext";
 
 const RoleEditPage: React.FC = () => {
@@ -27,7 +27,7 @@ const RoleEditPage: React.FC = () => {
   const roleIdNumber = roleId ? parseInt(roleId) : 0;
   const { data: currentRole, isLoading: roleLoading, error: roleError } = useRole(roleIdNumber);
   const updateRoleMutation = useUpdateRole();
-  const { data: permissionsData } = usePermissions({ page: 1, limit: 1000 });
+  const { data: permissionsData } = usePermissionsData({ page: 1, limit: 1000 });
   const { data: rolePermissionsData, isLoading: rolePermissionsLoading } = useRolePermissions(roleIdNumber);
   const assignPermissionsMutation = useAssignRolePermissions();
   

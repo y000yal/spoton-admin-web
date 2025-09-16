@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Key, MoreVertical, Eye } from "lucide-react";
+import { Plus, Edit, Trash2, Key, Eye } from "lucide-react";
 import type { Permission } from "../../types";
-import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
-import { usePermissions, useDeletePermission } from "../../hooks/usePermissions";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal, ActionButtons } from "../../components/UI";
+
+import { usePermissionsData, useDeletePermission } from "../../hooks/usePermissions";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions as usePermissionCheck } from "../../hooks/usePermissionCheck";
 
@@ -48,7 +48,7 @@ const PermissionsPage: React.FC = () => {
   };
 
   // React Query hooks
-  const { data: permissions, isLoading, isFetching, error } = usePermissions(queryParams);
+  const { data: permissions, isLoading, isFetching, error } = usePermissionsData(queryParams);
   const deletePermissionMutation = useDeletePermission();
   const queryClient = useQueryClient();
 
@@ -104,25 +104,6 @@ const PermissionsPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      "1": { label: "Active", className: "bg-green-100 text-green-800" },
-      "0": { label: "Inactive", className: "bg-red-100 text-red-800" },
-    };
-
-    const statusInfo = statusMap[status] || {
-      label: "Unknown",
-      className: "bg-gray-100 text-gray-800",
-    };
-
-    return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
-      >
-        {statusInfo.label}
-      </span>
-    );
-  };
 
   const tableColumns = [
     {
@@ -168,37 +149,35 @@ const PermissionsPage: React.FC = () => {
       render: (_: unknown, permission: Permission) => {
         if (!permission) return <div>N/A</div>;
 
+        const primaryActions = [
+          ...(hasPermission('permission-show') ? [{
+            label: 'View',
+            icon: <Eye className="h-4 w-4" />,
+            onClick: () => handleViewPermission(permission),
+            permission: 'permission-show'
+          }] : []),
+          ...(hasPermission('permission-update') ? [{
+            label: 'Edit',
+            icon: <Edit className="h-4 w-4" />,
+            onClick: () => handleEditPermission(permission),
+            permission: 'permission-update'
+          }] : []),
+          ...(hasPermission('permission-destroy') ? [{
+            label: 'Delete',
+            icon: <Trash2 className="h-4 w-4" />,
+            onClick: () => handleDeletePermission(permission),
+            className: 'text-red-600 hover:text-red-700',
+            permission: 'permission-destroy'
+          }] : []),
+        ];
+
         return (
-          <div className="flex justify-end relative">
-            <PermissionGate 
-              permissions={[PERMISSIONS.PERMISSIONS_SHOW, PERMISSIONS.PERMISSIONS_EDIT, PERMISSIONS.PERMISSIONS_DELETE]}
-              requireAll={false}
-              fallback={<div className="w-8 h-8"></div>}
-            >
-              <DropdownMenu
-                items={[
-                  ...(hasPermission(PERMISSIONS.PERMISSIONS_SHOW) ? [{
-                    label: 'View',
-                    icon: <Eye className="h-4 w-4" />,
-                    onClick: () => handleViewPermission(permission),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.PERMISSIONS_EDIT) ? [{
-                    label: 'Edit',
-                    icon: <Edit className="h-4 w-4" />,
-                    onClick: () => handleEditPermission(permission),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.PERMISSIONS_DELETE) ? [{
-                    label: 'Delete',
-                    icon: <Trash2 className="h-4 w-4" />,
-                    onClick: () => handleDeletePermission(permission),
-                    className: 'text-red-600 hover:text-red-700',
-                  }] : []),
-                ]}
-                trigger={<MoreVertical className="h-4 w-4" />}
-                className="overflow-visible"
-              />
-            </PermissionGate>
-          </div>
+          <ActionButtons
+            primaryActions={primaryActions}
+            permissions={['permission-show', 'permission-update', 'permission-destroy']}
+            requireAll={false}
+            fallback={<div className="w-8 h-8"></div>}
+          />
         );
       },
     },
@@ -212,7 +191,7 @@ const PermissionsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Permissions</h1>
         </div>
 
-        <PermissionGate permission={PERMISSIONS.PERMISSIONS_CREATE}>
+        <PermissionGate permission={'permission-store'}>
           <Button
             onClick={() => navigate("/permissions/create")}
             className="flex items-center space-x-2"

@@ -1,18 +1,15 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card } from '../../components/UI';
-import { ArrowLeft, Building2, Edit, MapPin, Globe, Calendar } from 'lucide-react';
+import { ArrowLeft, Building2, Edit, MapPin, Globe, Calendar, User } from 'lucide-react';
 import { useCenter } from '../../hooks/useCenters';
-import { usePermissions } from '../../hooks/usePermissionCheck';
-import { PERMISSIONS } from '../../utils/permissions';
+
 import PermissionGate from '../../components/PermissionGate';
 
 const CenterDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { centerId } = useParams<{ centerId: string }>();
-  const { hasPermission } = usePermissions();
-
-  const { data: center, isLoading, error } = useCenter(parseInt(centerId || '0'));
+  const { data: center, isLoading } = useCenter(parseInt(centerId || '0'));
 
   if (isLoading) {
     return (
@@ -69,7 +66,7 @@ const CenterDetailPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">{center.name}</h1>
         </div>
         
-        <PermissionGate permission={PERMISSIONS.CENTERS_EDIT}>
+        <PermissionGate permission={'center-update'}>
           <Button
             onClick={() => navigate(`/centers/${center.id}/edit`)}
             className="flex items-center space-x-2"
@@ -134,12 +131,81 @@ const CenterDetailPage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Areas Section */}
+          {/* Images Section */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Images</h2>
+              {center.media && center.media.length > 0 ? (
+                <div className="grid grid-cols-4 gap-4">
+                  {center.media.map((media, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={media.url}
+                        alt={`Center image ${index + 1}`}
+                        className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                      />
+                      <p className="mt-2 text-xs text-gray-500 text-center">Image {index + 1}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No images available</p>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Areas and Metadata */}
+        <div className="space-y-6">
+          {/* User Information */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Owner</h2>
+              {center.user ? (
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-5 w-5 text-blue-600" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {center.user.full_name || 'Unknown User'}
+                      </p>
+                      <p className="text-sm text-gray-500 truncate">
+                        {center.user.email}
+                      </p>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          center.user.status === '1' || center.user.status === 'active' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {center.user.status === '1' || center.user.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4">
+                  <User className="mx-auto h-8 w-8 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No owner assigned</p>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Areas */}
           <Card>
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Areas</h2>
-                <PermissionGate permission={PERMISSIONS.AREAS_VIEW}>
+                <PermissionGate permission={'area-index'}>
                   <Button
                     variant="outline"
                     onClick={() => navigate(`/centers/${center.id}/areas`)}
@@ -153,35 +219,6 @@ const CenterDetailPage: React.FC = () => {
               <p className="text-sm text-gray-500">
                 Manage areas within this center. Click "View All Areas" to see and manage all areas.
               </p>
-            </div>
-          </Card>
-        </div>
-
-        {/* Images and Metadata */}
-        <div className="space-y-6">
-          {/* Images */}
-          <Card>
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Images</h2>
-              {center.media && center.media.length > 0 ? (
-                <div className="grid grid-cols-1 gap-4">
-                  {center.media.map((media, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={media.url}
-                        alt={media.title}
-                        className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                      />
-                      <p className="mt-2 text-xs text-gray-500 text-center">{media.title}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-                  <p className="mt-2 text-sm text-gray-500">No images available</p>
-                </div>
-              )}
             </div>
           </Card>
 

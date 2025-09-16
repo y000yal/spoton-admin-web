@@ -10,6 +10,7 @@ export const areasKeys = {
   details: () => [...areasKeys.all, 'detail'] as const,
   detail: (centerId: number, areaId: number) => [...areasKeys.details(), centerId, areaId] as const,
   byCenter: (centerId: number) => [...areasKeys.all, 'center', centerId] as const,
+  byCenterList: (centerId: number, params: AreaQueryParams) => [...areasKeys.byCenter(centerId), 'list', params] as const,
 };
 
 // Hooks for areas list
@@ -33,10 +34,9 @@ export const useArea = (centerId: number, areaId: number) => {
 // Hook for areas by center
 export const useAreasByCenter = (centerId: number, params?: Omit<AreaQueryParams, 'center_id'>) => {
   return useQuery<PaginatedResponse<Area>>({
-    queryKey: areasKeys.byCenter(centerId),
+    queryKey: areasKeys.byCenterList(centerId, params || {}),
     queryFn: () => areaService.getAreasByCenter(centerId, params),
     enabled: centerId > 0,
-    placeholderData: (previousData) => previousData,
   });
 };
 
@@ -49,7 +49,7 @@ export const useCreateArea = () => {
       centerId: number; 
       areaData: CreateAreaRequest; 
     }) => areaService.createArea(centerId, areaData),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       // Invalidate all area-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: areasKeys.all });
       
@@ -69,7 +69,7 @@ export const useUpdateArea = () => {
       areaId: number; 
       areaData: UpdateAreaRequest; 
     }) => areaService.updateArea(centerId, areaId, areaData),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       // Invalidate all area-related queries to ensure fresh data
       queryClient.invalidateQueries({ queryKey: areasKeys.all });
       

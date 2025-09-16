@@ -3,9 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Button, Card, DeleteConfirmationModal } from "../../components/UI";
 import { ArrowLeft, Trophy, Edit, Trash2 } from "lucide-react";
 import { PermissionGate } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
-import { useDeleteSport, useSport, useSports } from "../../hooks/useSports";
+
+import { useDeleteSport, useSport } from "../../hooks/useSports";
 import { useQueryClient } from "@tanstack/react-query";
+import type { Sport } from "../../types";
 
 const SportDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +23,11 @@ const SportDetailPage: React.FC = () => {
 
   // Parse sportId and validate
   const parsedSportId = parseInt(sportId || "0");
+
+  // React Query hooks - must be called before any early returns
+  const { data: sportResponse, isLoading, error } = useSport(parsedSportId);
+  const deleteSportMutation = useDeleteSport();
+  const queryClient = useQueryClient();
 
   // Validate sportId
   if (!sportId || isNaN(parsedSportId) || parsedSportId <= 0) {
@@ -41,13 +47,8 @@ const SportDetailPage: React.FC = () => {
     );
   }
 
-  // React Query hooks
-  const { data: sportResponse, isLoading, error } = useSport(parsedSportId);
-  const deleteSportMutation = useDeleteSport();
-  const queryClient = useQueryClient();
-
   // Extract sport data from response
-  const currentSport = sportResponse?.data || sportResponse;
+  const currentSport = (sportResponse as any)?.data || sportResponse as Sport;
   const handleEdit = () => {
     if (sportId) {
       navigate(`/sports/${sportId}/edit`);
@@ -178,7 +179,7 @@ const SportDetailPage: React.FC = () => {
         </div>
 
         <div className="flex space-x-3">
-          <PermissionGate permission={PERMISSIONS.SPORTS_EDIT}>
+          <PermissionGate permission={'sport-update'}>
             <Button
               onClick={handleEdit}
               className="flex items-center space-x-2"
@@ -188,7 +189,7 @@ const SportDetailPage: React.FC = () => {
             </Button>
           </PermissionGate>
 
-          <PermissionGate permission={PERMISSIONS.SPORTS_DELETE}>
+          <PermissionGate permission={'sport-destroy'}>
             <Button
               onClick={handleDelete}
               variant="outline"
@@ -265,10 +266,10 @@ const SportDetailPage: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 mb-4">
                 Sport Image
               </label>
-              {currentSport.media_url ? (
+              {currentSport.media && currentSport.media.length > 0 ? (
                 <div className="space-y-4">
                   <img
-                    src={currentSport.media_url}
+                    src={currentSport.media[0].url}
                     alt={currentSport.name}
                     className="w-full h-64 object-cover rounded-lg border border-gray-300"
                   />

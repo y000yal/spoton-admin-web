@@ -4,17 +4,32 @@ import { Button, Card } from '../../components/UI';
 import { ArrowLeft, MapPin, Edit, Building2, Calendar } from 'lucide-react';
 import { useArea } from '../../hooks/useAreas';
 import { useCenter } from '../../hooks/useCenters';
-import { usePermissions } from '../../hooks/usePermissionCheck';
-import { PERMISSIONS } from '../../utils/permissions';
-import PermissionGate from '../../components/PermissionGate';
+import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
+import DynamicPermissionGate from '../../components/DynamicPermissionGate';
 
 const AreaDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const { centerId, areaId } = useParams<{ centerId: string; areaId: string }>();
-  const { hasPermission } = usePermissions();
+  const { hasPermission } = useDynamicPermissions();
 
   const { data: area, isLoading, error } = useArea(parseInt(centerId || '0'), parseInt(areaId || '0'));
   const { data: center } = useCenter(parseInt(centerId || '0'));
+
+  // Check if user has permission to view areas
+  if (!hasPermission('area-show')) {
+    return (
+      <div className="text-center py-12">
+        <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Access Denied</h3>
+        <p className="mt-1 text-sm text-gray-500">You don't have permission to view areas.</p>
+        <div className="mt-6">
+          <Button onClick={() => navigate(`/centers/${centerId}/areas`)}>
+            Back to Areas
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -76,7 +91,7 @@ const AreaDetailPage: React.FC = () => {
           </div>
         </div>
         
-        <PermissionGate permission={PERMISSIONS.AREAS_EDIT}>
+        <DynamicPermissionGate permission={'area-update'}>
           <Button
             onClick={() => navigate(`/centers/${centerId}/areas/${area.id}/edit`)}
             className="flex items-center space-x-2"
@@ -84,7 +99,7 @@ const AreaDetailPage: React.FC = () => {
             <Edit className="h-4 w-4" />
             <span>Edit Area</span>
           </Button>
-        </PermissionGate>
+        </DynamicPermissionGate>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

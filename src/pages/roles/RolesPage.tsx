@@ -1,16 +1,16 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Shield, MoreVertical, Eye } from "lucide-react";
+import { Plus, Edit, Trash2, Shield, Eye } from "lucide-react";
 import type { Role } from "../../types";
-import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
+import { Button, DataTable, PermissionGate, DeleteConfirmationModal, ActionButtons } from "../../components/UI";
+
 import { useRoles, useDeleteRole } from "../../hooks/useRoles";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePermissions } from "../../hooks/usePermissionCheck";
+import { useDynamicPermissions } from "../../hooks/useDynamicPermissions";
 
 const RolesPage: React.FC = () => {
   const navigate = useNavigate();
-  const { hasPermission } = usePermissions();
+  const { hasPermission } = useDynamicPermissions();
 
   // Table state management
   const [searchField, setSearchField] = useState("name");
@@ -104,25 +104,6 @@ const RolesPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      "1": { label: "Active", className: "bg-green-100 text-green-800" },
-      "0": { label: "Inactive", className: "bg-red-100 text-red-800" },
-    };
-
-    const statusInfo = statusMap[status] || {
-      label: "Unknown",
-      className: "bg-gray-100 text-gray-800",
-    };
-
-    return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
-      >
-        {statusInfo.label}
-      </span>
-    );
-  };
 
   const tableColumns = [
     {
@@ -167,37 +148,35 @@ const RolesPage: React.FC = () => {
       render: (_: unknown, role: Role) => {
         if (!role) return <div>N/A</div>;
 
+        const primaryActions = [
+          ...(hasPermission('role-show') ? [{
+            label: 'View',
+            icon: <Eye className="h-4 w-4" />,
+            onClick: () => handleViewRole(role),
+            permission: 'role-show'
+          }] : []),
+          ...(hasPermission('role-update') ? [{
+            label: 'Edit',
+            icon: <Edit className="h-4 w-4" />,
+            onClick: () => handleEditRole(role),
+            permission: 'role-update'
+          }] : []),
+          ...(hasPermission('role-destroy') ? [{
+            label: 'Delete',
+            icon: <Trash2 className="h-4 w-4" />,
+            onClick: () => handleDeleteRole(role),
+            className: 'text-red-600 hover:text-red-700',
+            permission: 'role-destroy'
+          }] : []),
+        ];
+
         return (
-          <div className="flex justify-end relative">
-            <PermissionGate 
-              permissions={[PERMISSIONS.ROLES_SHOW, PERMISSIONS.ROLES_EDIT, PERMISSIONS.ROLES_DELETE]}
-              requireAll={false}
-              fallback={<div className="w-8 h-8"></div>}
-            >
-              <DropdownMenu
-                items={[
-                  ...(hasPermission(PERMISSIONS.ROLES_SHOW) ? [{
-                    label: 'View',
-                    icon: <Eye className="h-4 w-4" />,
-                    onClick: () => handleViewRole(role),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.ROLES_EDIT) ? [{
-                    label: 'Edit',
-                    icon: <Edit className="h-4 w-4" />,
-                    onClick: () => handleEditRole(role),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.ROLES_DELETE) ? [{
-                    label: 'Delete',
-                    icon: <Trash2 className="h-4 w-4" />,
-                    onClick: () => handleDeleteRole(role),
-                    className: 'text-red-600 hover:text-red-700',
-                  }] : []),
-                ]}
-                trigger={<MoreVertical className="h-4 w-4" />}
-                className="overflow-visible"
-              />
-            </PermissionGate>
-          </div>
+          <ActionButtons
+            primaryActions={primaryActions}
+            permissions={['role-show', 'role-update', 'role-destroy']}
+            requireAll={false}
+            fallback={<div className="w-8 h-8"></div>}
+          />
         );
       },
     },
@@ -211,7 +190,7 @@ const RolesPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Roles</h1>
         </div>
 
-        <PermissionGate permission={PERMISSIONS.ROLES_CREATE}>
+        <PermissionGate permission={'role-store'}>
           <Button
             onClick={() => navigate("/roles/create")}
             className="flex items-center space-x-2"

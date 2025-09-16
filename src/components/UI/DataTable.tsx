@@ -378,7 +378,12 @@ function DataTable<T extends Record<string, unknown>>({
               tableData.map((item, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   {filteredColumns.map((column) => (
-                    <td key={String(column.key)} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <td 
+                      key={String(column.key)} 
+                      className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${
+                        column.key === 'actions' ? 'text-left' : 'text-left'
+                      }`}
+                    >
                       {renderCell(item, column)}
                     </td>
                   ))}

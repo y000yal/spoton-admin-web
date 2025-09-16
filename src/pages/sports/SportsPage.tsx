@@ -5,7 +5,6 @@ import {
   Edit,
   Trash2,
   Trophy,
-  MoreVertical,
   Eye,
 } from "lucide-react";
 import type { Sport } from "../../types";
@@ -14,9 +13,9 @@ import {
   DataTable,
   PermissionGate,
   DeleteConfirmationModal,
-  DropdownMenu,
+  ActionButtons,
 } from "../../components/UI";
-import { PERMISSIONS } from "../../utils/permissions";
+
 import { useSports, useDeleteSport } from "../../hooks/useSports";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePermissions } from "../../hooks/usePermissionCheck";
@@ -105,7 +104,7 @@ const SportsPage: React.FC = () => {
     try {
       await deleteSportMutation.mutateAsync(deleteModal.sport.id);
       setDeleteModal({ isOpen: false, sport: null, isLoading: false });
-    } catch (error) {
+    } catch {
       setDeleteModal(prev => ({ ...prev, isLoading: false }));
     }
   };
@@ -146,24 +145,6 @@ const SportsPage: React.FC = () => {
       render: (_: unknown, sport: Sport) => sport?.name || 'N/A'
     },
     {
-      key: 'sport_image',
-      header: 'Image',
-      sortable: false,
-      hideFromSearch: true,
-      render: (_: unknown, sport: Sport) => {
-        if (sport?.media_url) {
-          return (
-            <img
-              src={sport.media_url}
-              alt={sport.name}
-              className="w-12 h-12 object-cover rounded-lg border border-gray-300"
-            />
-          );
-        }
-        return <span className="text-gray-400 text-sm">No image</span>;
-      }
-    },
-    {
       key: 'status',
       header: 'Status',
       sortable: true,
@@ -183,37 +164,35 @@ const SportsPage: React.FC = () => {
       render: (_: unknown, sport: Sport) => {
         if (!sport) return <div>N/A</div>;
         
+        const primaryActions = [
+          ...(hasPermission('sport-show') ? [{
+            label: 'View',
+            icon: <Eye className="h-4 w-4" />,
+            onClick: () => handleViewSport(sport),
+            permission: 'sport-show'
+          }] : []),
+          ...(hasPermission('sport-update') ? [{
+            label: 'Edit',
+            icon: <Edit className="h-4 w-4" />,
+            onClick: () => handleEditSport(sport),
+            permission: 'sport-update'
+          }] : []),
+          ...(hasPermission('sport-destroy') ? [{
+            label: 'Delete',
+            icon: <Trash2 className="h-4 w-4" />,
+            onClick: () => handleDeleteSport(sport),
+            className: 'text-red-600 hover:text-red-700',
+            permission: 'sport-destroy'
+          }] : []),
+        ];
+
         return (
-          <div className="flex justify-end relative">
-            <PermissionGate 
-              permissions={[PERMISSIONS.SPORTS_SHOW, PERMISSIONS.SPORTS_EDIT, PERMISSIONS.SPORTS_DELETE]}
-              requireAll={false}
-              fallback={<div className="w-8 h-8"></div>}
-            >
-              <DropdownMenu
-                items={[
-                  ...(hasPermission(PERMISSIONS.SPORTS_SHOW) ? [{
-                    label: 'View',
-                    icon: <Eye className="h-4 w-4" />,
-                    onClick: () => handleViewSport(sport),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.SPORTS_EDIT) ? [{
-                    label: 'Edit',
-                    icon: <Edit className="h-4 w-4" />,
-                    onClick: () => handleEditSport(sport),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.SPORTS_DELETE) ? [{
-                    label: 'Delete',
-                    icon: <Trash2 className="h-4 w-4" />,
-                    onClick: () => handleDeleteSport(sport),
-                    className: 'text-red-600 hover:text-red-700',
-                  }] : []),
-                ]}
-                trigger={<MoreVertical className="h-4 w-4" />}
-                className="overflow-visible"
-              />
-            </PermissionGate>
-          </div>
+          <ActionButtons
+            primaryActions={primaryActions}
+            permissions={['sport-show', 'sport-update', 'sport-destroy']}
+            requireAll={false}
+            fallback={<div className="w-8 h-8"></div>}
+          />
         );
       }
     }
@@ -227,7 +206,7 @@ const SportsPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Sports</h1>
         </div>
         
-        <PermissionGate permission={PERMISSIONS.SPORTS_CREATE}>
+        <PermissionGate permission={'sport-store'}>
           <Button
             onClick={() => navigate('/sports/create')}
             className="flex items-center space-x-2"
@@ -239,7 +218,7 @@ const SportsPage: React.FC = () => {
       </div>
 
       <DataTable
-        data={sports || []}
+        data={sports as any || []}
         columns={tableColumns as any}
         isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {

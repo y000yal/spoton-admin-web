@@ -1,35 +1,39 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card } from '../../components/UI';
-import { ArrowLeft, MapPin, Upload, X } from 'lucide-react';
-import type { CreateAreaRequest } from '../../types';
+import { Button, Card, MediaSelectionModal, SportSearchInput } from '../../components/UI';
+import { ArrowLeft, MapPin, Image as ImageIcon } from 'lucide-react';
+import type { CreateAreaRequest, Sport } from '../../types';
 import { useCreateArea } from '../../hooks/useAreas';
 import { useCenter, useCenters } from '../../hooks/useCenters';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormValidation } from '../../hooks/useFormValidation';
+import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
 
 const AreaCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const { centerId } = useParams<{ centerId: string }>();
   const isCenterSpecific = !!centerId;
+  const { hasPermission } = useDynamicPermissions();
   
   const [formData, setFormData] = useState<CreateAreaRequest>({
     name: '',
     status: 'active',
     description: '',
-    floor: ''
+    floor: '',
+    sport_id: undefined,
+    media_ids: []
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [selectedCenterId, setSelectedCenterId] = useState<number | null>(null);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
+  const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
   
   // Use the form validation hook
   const {
     errors,
-    validationErrors,
     clearFieldError,
-    setClientErrors,
     handleApiError,
     getFieldError,
     hasFieldError,
@@ -55,53 +59,24 @@ const AreaCreatePage: React.FC = () => {
     clearFieldError(name);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      // Validate file types
-      const invalidFiles = files.filter(file => !file.type.startsWith('image/'));
-      if (invalidFiles.length > 0) {
-        setClientErrors({ images: 'Please select valid image files only' });
-        return;
-      }
-
-      // Validate file sizes (5MB limit per file)
-      const oversizedFiles = files.filter(file => file.size > 5 * 1024 * 1024);
-      if (oversizedFiles.length > 0) {
-        setClientErrors({ images: 'Image size must be less than 5MB per file' });
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        images: [...(prev.images || []), ...files]
-      }));
-
-      // Create previews
-      const newPreviews: string[] = [];
-      files.forEach((file) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          newPreviews.push(e.target?.result as string);
-          if (newPreviews.length === files.length) {
-            setImagePreviews(prev => [...prev, ...newPreviews]);
-          }
-        };
-        reader.readAsDataURL(file);
-      });
-
-      // Clear any existing validation error
-      clearFieldError('images');
-    }
-  };
-
-  const handleRemoveImage = (index: number) => {
-    setImagePreviews(prev => prev.filter((_, i) => i !== index));
+  const handleSportSelect = (sport: Sport | null) => {
+    setSelectedSport(sport);
     setFormData(prev => ({
       ...prev,
-      images: prev.images?.filter((_, i) => i !== index) || []
+      sport_id: sport?.id
+    }));
+    clearFieldError('sport_id');
+  };
+
+  const handleMediaSelect = (mediaIds: number[]) => {
+    setSelectedMediaIds(mediaIds);
+    setFormData(prev => ({
+      ...prev,
+      media_ids: mediaIds
     }));
   };
+
+
 
   const validateForm = (): boolean => {
     return formData.name.trim().length > 0 && 
@@ -155,6 +130,22 @@ const AreaCreatePage: React.FC = () => {
   const handleCancel = () => {
     navigate(`/centers/${centerId}/areas`);
   };
+
+  // Check if user has permission to create areas
+  if (!hasPermission('area-store')) {
+    return (
+      <div className="text-center py-12">
+        <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">Access Denied</h3>
+        <p className="mt-1 text-sm text-gray-500">You don't have permission to create areas.</p>
+        <div className="mt-6">
+          <Button onClick={() => navigate(`/centers/${centerId}/areas`)}>
+            Back to Areas
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -295,6 +286,22 @@ const AreaCreatePage: React.FC = () => {
                   )}
                 </div>
 
+                <div>
+                  <label htmlFor="sport" className="block text-sm font-medium text-gray-700 mb-2">
+                    Sport
+                  </label>
+                  <SportSearchInput
+                    selectedSport={selectedSport}
+                    onSportSelect={handleSportSelect}
+                    placeholder="Search for a sport..."
+                    disabled={isSubmitting}
+                  />
+                  {getFieldError('sport_id') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('sport_id')}</p>
+                  )}
+                </div>
+
+
                 {errors.submit && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{errors.submit}</p>
@@ -333,73 +340,81 @@ const AreaCreatePage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Image Upload Section */}
+        {/* Media Selection Section */}
         <div className="lg:col-span-1">
           <Card>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Area Images
-              </label>
-              
-              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                hasFieldError('images') 
-                  ? 'border-red-500 hover:border-red-600' 
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}>
-                <input
-                  type="file"
-                  id="images"
-                  name="images"
-                  accept="image/*"
-                  multiple
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="images"
-                  className="cursor-pointer flex flex-col items-center space-y-2"
-                >
-                  <Upload className="h-8 w-8 text-gray-400" />
-                  <span className="text-sm text-gray-600">
-                    Click to upload images
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    PNG, JPG, GIF up to 5MB each
-                  </span>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Area Images
                 </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMediaModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Select Images</span>
+                </Button>
               </div>
-
-              {imagePreviews.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Selected Images:</p>
+              
+              {selectedMediaIds.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600">
+                    {selectedMediaIds.length} image(s) selected
+                  </div>
+                  
+                  {/* Selected Images Preview */}
                   <div className="grid grid-cols-2 gap-2">
-                    {imagePreviews.map((preview, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={preview}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-24 object-cover rounded border border-gray-300"
-                        />
+                    {selectedMediaIds.map((mediaId) => (
+                      <div key={mediaId} className="relative group">
+                        <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                          <ImageIcon className="h-8 w-8 text-gray-400" />
+                        </div>
                         <button
                           type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                          onClick={() => {
+                            const newSelectedIds = selectedMediaIds.filter(id => id !== mediaId);
+                            setSelectedMediaIds(newSelectedIds);
+                            setFormData(prev => ({
+                              ...prev,
+                              media_ids: newSelectedIds
+                            }));
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
-                          <X className="h-3 w-3" />
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
                         </button>
                       </div>
                     ))}
                   </div>
                 </div>
-              )}
-              
-              {getFieldError('images') && (
-                <p className="mt-2 text-sm text-red-600">{getFieldError('images')}</p>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <ImageIcon className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p className="text-sm">No images selected</p>
+                  <p className="text-xs text-gray-400">Click "Select Images" to choose media</p>
+                </div>
               )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      <MediaSelectionModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        selectedMediaIds={selectedMediaIds}
+        selectionMode="multiple"
+        allowAddNew={true}
+        title="Select Area Images"
+      />
     </div>
   );
 };

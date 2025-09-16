@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import type { AuthContextType, AuthProviderProps } from './AuthContextTypes';
 import type { LoginCredentials } from '../types';
 import { AuthContext } from './AuthContextInstance';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { login, logoutUser, clearError, refreshCurrentUser } from '../store/slices/authSlice';
+import { PermissionsProvider } from './PermissionsContext';
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const dispatch = useAppDispatch();
@@ -13,17 +14,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     await dispatch(login(credentials)).unwrap();
   };
 
-  const logoutUserHandler = () => {
+  const logoutUserHandler = useCallback(() => {
     dispatch(logoutUser());
-  };
+  }, [dispatch]);
 
-  const clearAuthError = () => {
+  const clearAuthError = useCallback(() => {
     dispatch(clearError());
-  };
+  }, [dispatch]);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     await dispatch(refreshCurrentUser()).unwrap();
-  };
+  }, [dispatch]);
 
   // Initialize auth state from localStorage
   useEffect(() => {
@@ -44,7 +45,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         logoutUserHandler();
       }
     }
-  }, []);
+  }, [refreshUser, logoutUserHandler]);
 
   const value: AuthContextType = {
     user,
@@ -59,7 +60,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      <PermissionsProvider>
+        {children}
+      </PermissionsProvider>
     </AuthContext.Provider>
   );
 };

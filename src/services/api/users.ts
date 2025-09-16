@@ -8,7 +8,8 @@ export interface UserQueryParams {
   filter_field?: string;
   filter_value?: string;
   sort_field?: string;
-  sort_order?: 'asc' | 'desc';
+  sort_by?: 'asc' | 'desc';
+  [key: string]: unknown;
 }
 
 export interface CreateUserData {

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Button, Card } from '../../components/UI';
-import { ArrowLeft, Trophy, Upload, X } from 'lucide-react';
+import { Button, Card, MediaSelectionModal } from '../../components/UI';
+import { ArrowLeft, Trophy, Image as ImageIcon } from 'lucide-react';
 import type { UpdateSportRequest } from '../../types';
 import { useSport, useUpdateSport } from '../../hooks/useSports';
+import { useMedia } from '../../hooks/useMedia';
 
 const SportEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -12,12 +13,14 @@ const SportEditPage: React.FC = () => {
   const [formData, setFormData] = useState<UpdateSportRequest>({
     name: '',
     description: '',
-    status: 'active'
+    status: 'active',
+    media_ids: []
   });
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
 
   // Refs to track API calls and prevent duplicates
   const isSubmittingRef = useRef(false);
@@ -25,6 +28,17 @@ const SportEditPage: React.FC = () => {
   // React Query hooks
   const { data: currentSport, isLoading } = useSport(parseInt(sportId || '0'));
   const updateSportMutation = useUpdateSport();
+  
+  // Fetch all media and filter by selected IDs
+  const { data: allMediaData } = useMedia({
+    page: 1,
+    limit: 1000 // Get a large number to ensure we have all media
+  });
+  
+  // Filter media by selected IDs
+  const selectedMediaData = allMediaData?.data?.filter(media => 
+    selectedMediaIds.includes(media.id)
+  ) || [];
   // Update form data when sport is loaded
   useEffect(() => {
     if (currentSport) {
@@ -34,9 +48,14 @@ const SportEditPage: React.FC = () => {
         status: currentSport.status || 'active'
       });
       
-      // Set existing image if available
-      if (currentSport.media_url) {
-        setImagePreview(currentSport.media_url);
+      // Set existing media if available
+      if (currentSport.media && currentSport.media.length > 0) {
+        const mediaIds = currentSport.media.map(media => media.media_id);
+        setSelectedMediaIds(mediaIds);
+        setFormData(prev => ({
+          ...prev,
+          media_ids: mediaIds
+        }));
       }
     }
   }, [currentSport]);
@@ -57,57 +76,6 @@ const SportEditPage: React.FC = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: 'Please select a valid image file'
-        }));
-        return;
-      }
-
-      // Validate file size (5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: 'Image size must be less than 5MB'
-        }));
-        return;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        sport_image: file
-      }));
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
-      
-
-      // Clear error
-      if (errors.sport_image) {
-        setErrors(prev => ({
-          ...prev,
-          sport_image: ''
-        }));
-      }
-    }
-  };
-
-  const handleRemoveImage = () => {
-    setImagePreview(null);
-    setFormData(prev => ({
-      ...prev,
-      sport_image: undefined
-    }));
-  };
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -156,6 +124,16 @@ const SportEditPage: React.FC = () => {
 
   const handleCancel = () => {
     navigate('/sports');
+  };
+
+  const handleMediaSelect = (mediaIds: number[]) => {
+    setSelectedMediaIds(mediaIds);
+    // Update form data with selected media IDs
+    setFormData(prev => ({
+      ...prev,
+      media_ids: mediaIds
+    }));
+    console.log('Selected media IDs:', mediaIds);
   };
 
   if (isLoading) {
@@ -297,71 +275,85 @@ const SportEditPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Image Upload Section */}
+        {/* Media Selection Section */}
         <div className="lg:col-span-1">
           <Card>
             <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-4">
-                Sport Image
-              </label>
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-gray-700">
+                  Sport Image
+                </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMediaModal(true)}
+                  className="flex items-center space-x-2"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  <span>Select from Library</span>
+                </Button>
+              </div>
               
-              {!imagePreview ? (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-gray-400 transition-colors">
-                  <input
-                    type="file"
-                    id="sport_image"
-                    name="sport_image"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="sport_image"
-                    className="cursor-pointer flex flex-col items-center space-y-2"
-                  >
-                    <Upload className="h-8 w-8 text-gray-400" />
-                    <span className="text-sm text-gray-600">
-                      Click to upload an image
-                    </span>
-                    <span className="text-xs text-gray-500">
-                      PNG, JPG, GIF up to 5MB
-                    </span>
-                  </label>
+              {selectedMediaIds.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-600">
+                    {selectedMediaIds.length} image(s) selected
+                  </div>
+                  
+                  {/* Selected Images Preview */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {selectedMediaData.map((media) => (
+                      <div key={media.id} className="relative group">
+                        <img
+                          src={media.url}
+                          alt={media.title || `Media ${media.id}`}
+                          className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSelectedIds = selectedMediaIds.filter(id => id !== media.id);
+                            setSelectedMediaIds(newSelectedIds);
+                            setFormData(prev => ({
+                              ...prev,
+                              media_ids: newSelectedIds
+                            }));
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="relative">
-                    <img
-                      src={imagePreview}
-                      alt="Sport preview"
-                      className="w-full h-64 object-cover rounded-lg border border-gray-300"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm text-gray-500">
-                      {formData.name || 'Sport'} Image
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Click the X to remove
-                    </p>
-                  </div>
+                <div className="text-center py-8">
+                  <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                  <p className="text-sm text-gray-600 mb-2">No image selected</p>
+                  <p className="text-xs text-gray-500">
+                    Click "Select from Library" to choose an image
+                  </p>
                 </div>
-              )}
-              
-              {errors.sport_image && (
-                <p className="mt-2 text-sm text-red-600">{errors.sport_image}</p>
               )}
             </div>
           </Card>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      <MediaSelectionModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        selectedMediaIds={selectedMediaIds}
+        selectionMode="single"
+        allowAddNew={true}
+        title="Select Sport Image"
+      />
     </div>
   );
 };

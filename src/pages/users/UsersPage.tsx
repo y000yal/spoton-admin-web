@@ -1,19 +1,19 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, DataTable, PermissionGate, DeleteConfirmationModal, DropdownMenu } from "../../components/UI";
-import { Plus, Users, Eye, Edit, Trash2, MoreVertical } from "lucide-react";
-import { PERMISSIONS } from "../../utils/permissions";
+import { Button, DataTable, DeleteConfirmationModal, ActionButtons } from "../../components/UI";
+import DynamicPermissionGate from "../../components/DynamicPermissionGate";
+import { Plus, Users, Eye, Edit, Trash2 } from "lucide-react";
 import type { User } from "../../types";
 import { useUsers, useDeleteUser } from "../../hooks/useUsers";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../../contexts/ToastContext";
 import { useAppSelector } from "../../store/hooks";
-import { usePermissions } from "../../hooks/usePermissionCheck";
+import { useDynamicPermissions } from "../../hooks/useDynamicPermissions";
 
 const UsersPage: React.FC = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
-  const { hasPermission } = usePermissions();
+  const { hasPermission } = useDynamicPermissions();
   
   // Get current logged-in user
   const { user: currentLoggedInUser } = useAppSelector(state => state.auth);
@@ -194,37 +194,35 @@ const UsersPage: React.FC = () => {
       render: (_: unknown, user: User) => {
         if (!user) return <div>N/A</div>;
 
+        const primaryActions = [
+          ...(hasPermission('user-show') ? [{
+            label: 'View',
+            icon: <Eye className="h-4 w-4" />,
+            onClick: () => handleViewUser(user),
+            permission: 'user-show'
+          }] : []),
+          ...(hasPermission('user-update') ? [{
+            label: 'Edit',
+            icon: <Edit className="h-4 w-4" />,
+            onClick: () => handleEditUser(user),
+            permission: 'user-update'
+          }] : []),
+          ...(hasPermission('user-destroy') && currentLoggedInUser && currentLoggedInUser.id !== user.id ? [{
+            label: 'Delete',
+            icon: <Trash2 className="h-4 w-4" />,
+            onClick: () => handleDeleteUser(user),
+            className: 'text-red-600 hover:text-red-700',
+            permission: 'user-destroy'
+          }] : []),
+        ];
+
         return (
-          <div className="flex justify-end relative">
-            <PermissionGate 
-              permissions={[PERMISSIONS.USERS_SHOW, PERMISSIONS.USERS_EDIT, PERMISSIONS.USERS_DELETE]}
-              requireAll={false}
-              fallback={<div className="w-8 h-8"></div>}
-            >
-              <DropdownMenu
-                items={[
-                  ...(hasPermission(PERMISSIONS.USERS_SHOW) ? [{
-                    label: 'View',
-                    icon: <Eye className="h-4 w-4" />,
-                    onClick: () => handleViewUser(user),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.USERS_EDIT) ? [{
-                    label: 'Edit',
-                    icon: <Edit className="h-4 w-4" />,
-                    onClick: () => handleEditUser(user),
-                  }] : []),
-                  ...(hasPermission(PERMISSIONS.USERS_DELETE) && currentLoggedInUser && currentLoggedInUser.id !== user.id ? [{
-                    label: 'Delete',
-                    icon: <Trash2 className="h-4 w-4" />,
-                    onClick: () => handleDeleteUser(user),
-                    className: 'text-red-600 hover:text-red-700',
-                  }] : []),
-                ]}
-                trigger={<MoreVertical className="h-4 w-4" />}
-                className="overflow-visible"
-              />
-            </PermissionGate>
-          </div>
+          <ActionButtons
+            primaryActions={primaryActions}
+            permissions={['user-show', 'user-update', 'user-destroy']}
+            requireAll={false}
+            fallback={<div className="w-8 h-8"></div>}
+          />
         );
       },
     },
@@ -238,7 +236,7 @@ const UsersPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Users</h1>
         </div>
 
-        <PermissionGate permission={PERMISSIONS.USERS_CREATE}>
+        <DynamicPermissionGate permission={'user-store'}>
           <Button
             onClick={() => navigate("/users/create")}
             className="flex items-center space-x-2"
@@ -246,7 +244,7 @@ const UsersPage: React.FC = () => {
             <Plus className="h-4 w-4" />
             <span>Add User</span>
           </Button>
-        </PermissionGate>
+        </DynamicPermissionGate>
       </div>
 
       <DataTable
