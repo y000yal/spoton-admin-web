@@ -91,16 +91,7 @@ const SportCreatePage: React.FC = () => {
       // Only navigate after data is fully updated
       navigate('/sports');
     } catch (error: unknown) {
-      console.log('Error caught in handleSubmit:', error);
-      console.log('Error structure:', {
-        type: typeof error,
-        constructor: error?.constructor?.name,
-        keys: error && typeof error === 'object' ? Object.keys(error) : 'not an object',
-        hasResponse: error && typeof error === 'object' && 'response' in error,
-        response: error && typeof error === 'object' && 'response' in error ? (error as { response: unknown }).response : 'no response'
-      });
       handleApiError(error);
-      console.log('After handleApiError - errors:', errors, 'validationErrors:', validationErrors);
     } finally {
       setIsSubmitting(false);
       isSubmittingRef.current = false;
@@ -118,30 +109,60 @@ const SportCreatePage: React.FC = () => {
       ...prev,
       media_ids: mediaIds
     }));
-    console.log('Selected media IDs:', mediaIds);
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/sports')}
-          className="flex items-center space-x-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
-        </Button>
-        <Trophy className="h-8 w-8 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Create Sport</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/sports')}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+          <Trophy className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Create Sport</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="sport-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <Trophy className="h-4 w-4" />
+                <span>Create Sport</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form Content */}
         <div className="lg:col-span-2">
           <Card>
-            <form onSubmit={handleSubmit}>
+            <form id="sport-form" onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -161,14 +182,6 @@ const SportCreatePage: React.FC = () => {
                   {getFieldError('name') && (
                     <p className="mt-1 text-sm text-red-600">{getFieldError('name')}</p>
                   )}
-                  
-                  {/* Debug info */}
-                  <div className="text-xs text-gray-500 mt-1">
-                    Debug: hasFieldError('name') = {hasFieldError('name').toString()}, 
-                    getFieldError('name') = {getFieldError('name') || 'undefined'}<br/>
-                    errors.name = {errors.name || 'undefined'}, 
-                    validationErrors.name = {validationErrors.name || 'undefined'}
-                  </div>
                 </div>
 
                 <div>
@@ -218,58 +231,6 @@ const SportCreatePage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  
-                  {/* Temporary test button */}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      const mockError = {
-                        response: {
-                          status: 422,
-                          data: {
-                            errors: {
-                              name: ['The name has already been taken.'],
-                              description: ['The description field is required when status is active.']
-                            }
-                          }
-                        }
-                      };
-                      console.log('Simulating 422 error:', mockError);
-                      handleApiError(mockError);
-                    }}
-                    className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
-                  >
-                    Test 422 Error
-                  </Button>
-                  
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Creating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trophy className="h-4 w-4" />
-                        <span>Create Sport</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             </form>
           </Card>

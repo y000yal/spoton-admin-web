@@ -1,11 +1,12 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card } from '../../components/UI';
-import { ArrowLeft, MapPin, Edit, Building2, Calendar } from 'lucide-react';
+import { ArrowLeft, MapPin, Edit, Building2, Calendar, Star } from 'lucide-react';
 import { useArea } from '../../hooks/useAreas';
 import { useCenter } from '../../hooks/useCenters';
 import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
 import DynamicPermissionGate from '../../components/DynamicPermissionGate';
+import { getAmenityIcon } from '../../utils/amenityIcons.tsx';
 
 const AreaDetailPage: React.FC = () => {
   const navigate = useNavigate();
@@ -141,7 +142,74 @@ const AreaDetailPage: React.FC = () => {
                     <span className="text-sm text-gray-900">{center?.name || 'N/A'}</span>
                   </div>
                 </div>
+
+                {area.sport && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Sport</label>
+                    <div className="mt-1 flex items-center space-x-2">
+                      <MapPin className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-900">{area.sport.name}</span>
+                    </div>
+                  </div>
+                )}
               </div>
+            </div>
+          </Card>
+
+          {/* Amenities Section */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                <Star className="h-5 w-5 text-yellow-500" />
+                <span>Amenities</span>
+              </h2>
+              {area.amenities && area.amenities.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Group amenities by category */}
+                  {Object.entries(
+                    area.amenities.reduce((acc, amenity) => {
+                      const category = amenity.category || 'Other';
+                      if (!acc[category]) {
+                        acc[category] = [];
+                      }
+                      acc[category].push(amenity);
+                      return acc;
+                    }, {} as Record<string, typeof area.amenities>)
+                  ).map(([category, amenities]) => (
+                    <div key={category}>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2 uppercase tracking-wide">
+                        {category}
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {amenities.map((amenity) => (
+                          <div
+                            key={amenity.id}
+                            className="flex items-center space-x-2 p-2 bg-gray-50 rounded-md"
+                          >
+                            {getAmenityIcon(amenity.icon, 'text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded')}
+                            <div className="flex-1">
+                              <span className="text-sm font-medium text-gray-900">
+                                {amenity.name}
+                              </span>
+                              {amenity.description && (
+                                <p className="text-xs text-gray-500">
+                                  {amenity.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Star className="mx-auto h-12 w-12 text-gray-400" />
+                  <p className="mt-2 text-sm text-gray-500">No amenities available</p>
+                  <p className="text-xs text-gray-400">This area doesn't have any amenities configured</p>
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -184,7 +252,7 @@ const AreaDetailPage: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Created</p>
                     <p className="text-sm text-gray-900">
-                      {area.created_at ? new Date(area.created_at).toLocaleDateString() : 'N/A'}
+                      {area.created_at || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -193,7 +261,7 @@ const AreaDetailPage: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Last Updated</p>
                     <p className="text-sm text-gray-900">
-                      {area.updated_at ? new Date(area.updated_at).toLocaleDateString() : 'N/A'}
+                      {area.updated_at || 'N/A'}
                     </p>
                   </div>
                 </div>

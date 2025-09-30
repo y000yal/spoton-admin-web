@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card, MediaSelectionModal } from '../../components/UI';
-import { ArrowLeft, Building2, X, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Building2, X, Image as ImageIcon, Mail, Phone } from 'lucide-react';
 import type { UpdateCenterRequest, User as UserType, Country } from '../../types';
 import { useCenter, useUpdateCenter } from '../../hooks/useCenters';
 import { useFormValidation } from '../../hooks/useFormValidation';
@@ -9,6 +9,7 @@ import { useMedia } from '../../hooks/useMedia';
 import { useAuth } from '../../hooks/useAuth';
 import UserSearchInput from '../../components/UserSearchInput';
 import CountrySearchInput from '../../components/CountrySearchInput';
+import OperatingHours from '../../components/OperatingHours';
 
 const CenterEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -22,6 +23,18 @@ const CenterEditPage: React.FC = () => {
     longitude: 0,
     latitude: 0,
     status: 'active',
+    center_email: '',
+    contact_number: '',
+    operating_hours: {
+      monday: { open: '09:00', close: '18:00', closed: false },
+      tuesday: { open: '09:00', close: '18:00', closed: false },
+      wednesday: { open: '09:00', close: '18:00', closed: false },
+      thursday: { open: '09:00', close: '18:00', closed: false },
+      friday: { open: '09:00', close: '18:00', closed: false },
+      saturday: { open: '09:00', close: '18:00', closed: false },
+      sunday: { open: '09:00', close: '18:00', closed: false }
+    },
+    banner_image_id: null,
     media_ids: []
   });
   
@@ -30,6 +43,7 @@ const CenterEditPage: React.FC = () => {
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [bannerImageId, setBannerImageId] = useState<number | null>(null);
 
   // Use the form validation hook
   const {
@@ -38,6 +52,8 @@ const CenterEditPage: React.FC = () => {
     handleApiError,
     getFieldError,
     hasFieldError,
+    setClientErrors,
+    clearAllErrors,
   } = useFormValidation();
 
   // Refs to track API calls and prevent duplicates
@@ -73,6 +89,18 @@ const CenterEditPage: React.FC = () => {
         longitude: currentCenter.longitude || 0,
         latitude: currentCenter.latitude || 0,
         status: currentCenter.status || 'active',
+        center_email: currentCenter.center_details?.email || '',
+        contact_number: currentCenter.center_details?.contact_number || '',
+        operating_hours: currentCenter.center_details?.operating_hours || {
+          monday: { open: '09:00', close: '18:00', closed: false },
+          tuesday: { open: '09:00', close: '18:00', closed: false },
+          wednesday: { open: '09:00', close: '18:00', closed: false },
+          thursday: { open: '09:00', close: '18:00', closed: false },
+          friday: { open: '09:00', close: '18:00', closed: false },
+          saturday: { open: '09:00', close: '18:00', closed: false },
+          sunday: { open: '09:00', close: '18:00', closed: false }
+        },
+        banner_image_id: currentCenter.center_details?.banner_image?.id || null,
         user_id: currentCenter.user_id
       });
       
@@ -108,6 +136,11 @@ const CenterEditPage: React.FC = () => {
           media_ids: mediaIds
         }));
       }
+
+      // Set existing banner image if available
+      if (currentCenter.center_details?.banner_image?.id) {
+        setBannerImageId(currentCenter.center_details.banner_image.id);
+      }
     }
   }, [currentCenter]);
 
@@ -139,6 +172,11 @@ const CenterEditPage: React.FC = () => {
       ...prev,
       user_id: selectedUser?.id || user?.id
     }));
+    
+    // Clear user_id error when user is selected
+    if (selectedUser) {
+      clearFieldError('user_id');
+    }
   };
 
   const handleCountrySelect = (selectedCountry: Country | null) => {
@@ -156,13 +194,65 @@ const CenterEditPage: React.FC = () => {
       ...prev,
       media_ids: newMediaIds
     }));
+    
+    // If the removed media was the banner image, clear it
+    if (bannerImageId === mediaId) {
+      setBannerImageId(null);
+      setFormData(prev => ({
+        ...prev,
+        banner_image_id: null
+      }));
+    }
+  };
+
+  const handleOperatingHoursChange = (operatingHours: UpdateCenterRequest['operating_hours']) => {
+    setFormData(prev => ({
+      ...prev,
+      operating_hours: operatingHours
+    }));
+  };
+
+  const handleBannerImageSelect = (imageId: number | null) => {
+    setBannerImageId(imageId);
+    setFormData(prev => ({
+      ...prev,
+      banner_image_id: imageId
+    }));
   };
 
   const validateForm = (): boolean => {
-    return (formData.name?.trim().length || 0) > 0 && 
+    const isValid = (formData.name?.trim().length || 0) > 0 && 
            (formData.country_id || 0) > 0 && 
            (formData.address?.trim().length || 0) > 0 &&
            (formData.status?.length || 0) > 0;
+    
+    // Set client-side validation errors
+    const clientErrors: Record<string, string> = {};
+    
+    if (!formData.name || formData.name.trim().length === 0) {
+      clientErrors.name = 'Center name is required';
+    }
+    
+    if (!formData.country_id || formData.country_id === 0) {
+      clientErrors.country_id = 'Please select a country';
+    }
+    
+    if (!formData.address || formData.address.trim().length === 0) {
+      clientErrors.address = 'Address is required';
+    }
+    
+    if (!formData.status || formData.status.length === 0) {
+      clientErrors.status = 'Status is required';
+    }
+    
+    // Set client errors using the validation hook
+    if (Object.keys(clientErrors).length > 0) {
+      setClientErrors(clientErrors);
+    } else {
+      clearAllErrors();
+    }
+    
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,25 +319,56 @@ const CenterEditPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/centers')}
-          className="flex items-center space-x-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
-        </Button>
-        <Building2 className="h-8 w-8 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Edit Center</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/centers')}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+          <Building2 className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Edit Center</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="center-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Building2 className="h-4 w-4" />
+                <span>Update Center</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form Content */}
         <div className="lg:col-span-2">
           <Card>
-            <form onSubmit={handleSubmit}>
+            <form id="center-form" onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -369,6 +490,59 @@ const CenterEditPage: React.FC = () => {
                   )}
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="center_email" className="block text-sm font-medium text-gray-700 mb-2">
+                      <Mail className="inline h-4 w-4 mr-1" />
+                      Center Email
+                    </label>
+                    <input
+                      type="email"
+                      id="center_email"
+                      name="center_email"
+                      value={formData.center_email || ''}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        hasFieldError('center_email') ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter center email"
+                    />
+                    {getFieldError('center_email') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('center_email')}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="contact_number" className="block text-sm font-medium text-gray-700 mb-2">
+                      <Phone className="inline h-4 w-4 mr-1" />
+                      Contact Number
+                    </label>
+                    <input
+                      type="tel"
+                      id="contact_number"
+                      name="contact_number"
+                      value={formData.contact_number || ''}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        hasFieldError('contact_number') ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter contact number"
+                    />
+                    {getFieldError('contact_number') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('contact_number')}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <OperatingHours
+                    value={formData.operating_hours}
+                    onChange={handleOperatingHoursChange}
+                    error={getFieldError('operating_hours')}
+                    disabled={isSubmitting}
+                  />
+                </div>
+
                 <div>
                   <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
                     Status <span className="text-red-500">*</span>
@@ -401,6 +575,9 @@ const CenterEditPage: React.FC = () => {
                       onUserSelect={handleUserSelect}
                       placeholder="Search users to assign this center..."
                     />
+                    {getFieldError('user_id') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('user_id')}</p>
+                    )}
                     <p className="mt-1 text-xs text-gray-500">
                       Leave empty to assign to yourself
                     </p>
@@ -413,33 +590,6 @@ const CenterEditPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Updating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Building2 className="h-4 w-4" />
-                        <span>Update Center</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             </form>
           </Card>
@@ -464,7 +614,7 @@ const CenterEditPage: React.FC = () => {
                 </Button>
               </div>
 
-              {/* Selected Images Preview */}
+              {/* Selected Images Preview with Banner Selection */}
               {selectedMediaData && selectedMediaData.length > 0 && (
                 <div className="space-y-3">
                   <p className="text-sm font-medium text-gray-700">
@@ -476,8 +626,27 @@ const CenterEditPage: React.FC = () => {
                         <img
                           src={media.url}
                           alt={media.title || `Media ${media.id}`}
-                          className="w-full h-24 object-cover rounded border border-gray-300"
+                          className={`w-full h-24 object-cover rounded border-2 transition-colors ${
+                            bannerImageId === media.id 
+                              ? 'border-blue-500' 
+                              : 'border-gray-300'
+                          }`}
                         />
+                        
+                        {/* Banner Selection Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleBannerImageSelect(bannerImageId === media.id ? null : media.id)}
+                          className={`absolute top-1 left-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            bannerImageId === media.id 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-white text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          {bannerImageId === media.id ? 'Banner' : 'Set Banner'}
+                        </button>
+                        
+                        {/* Remove Image Button */}
                         <button
                           type="button"
                           onClick={() => handleRemoveMedia(media.id)}
@@ -488,6 +657,14 @@ const CenterEditPage: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                  
+                  {bannerImageId && (
+                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="text-sm text-blue-800">
+                        ✓ Banner image selected (ID: {bannerImageId})
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -500,6 +677,7 @@ const CenterEditPage: React.FC = () => {
               )}
             </div>
           </Card>
+
         </div>
       </div>
 

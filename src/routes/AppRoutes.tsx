@@ -6,6 +6,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 import PublicRoutes from './PublicRoutes';
 import DashboardRoutes from './DashboardRoutes';
 import UserRoutes from './UserRoutes';
+import ProfileRoute from './ProfileRoute';
 import RoleRoutes from './RoleRoutes';
 import PermissionRoutes from './PermissionRoutes';
 import SportRoutes from './SportRoutes';
@@ -60,7 +61,13 @@ const AppRoutes: React.FC = () => {
               <UserRoutes />
             </ProtectedRoute>
           } />
-          <Route path="profile/*" element={<UserRoutes />} />
+          
+          {/* Profile Route - Direct route for current user's profile */}
+          <Route path="profile" element={
+            <ProtectedRoute>
+              <ProfileRoute />
+            </ProtectedRoute>
+          } />
           
           {/* Role Routes */}
           <Route path="roles/*" element={

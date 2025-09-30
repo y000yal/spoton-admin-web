@@ -27,32 +27,69 @@ export interface User {
   updated_at: string | null;
   role_id?: number;
   role?: Role;
+  mobile_no?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  country_id?: number | null;
+  address?: string | null;
+  longitude?: string | null;
+  latitude?: string | null;
+  preferred_sports?: string | null;
+  emergency_contact_name?: string | null;
+  emergency_contact_no?: string | null;
+  emergency_contact_relationship?: string | null;
+  terms_and_condition_acceptance?: string | null;
+  privacy_policy_acceptance?: string | null;
 }
 
 export interface CreateUserRequest {
   role_id: number;
   email: string;
+  username: string;
   full_name: {
     first_name: string;
     middle_name?: string;
     last_name: string;
   };
-  username: string;
+  mobile_no?: string;
+  date_of_birth?: string;
+  gender?: string;
+  country_id?: number;
+  address?: string;
+  longitude?: string;
+  latitude?: string;
+  preferred_sports?: string;
+  emergency_contact_name?: string;
+  emergency_contact_no?: string;
+  emergency_contact_relationship?: string;
+  terms_and_condition_acceptance?: string;
+  privacy_policy_acceptance?: string;
   password: string;
   confirm_password: string;
-  address: string;
-  mobile_no: number;
 }
 
 export interface UpdateUserRequest {
   role_id?: number;
+  email?: string;
+  username?: string;
   full_name?: {
     first_name: string;
     middle_name?: string;
     last_name: string;
   };
-  email?: string;
-  username?: string;
+  mobile_no?: string;
+  date_of_birth?: string;
+  gender?: string;
+  country_id?: number;
+  address?: string;
+  longitude?: string;
+  latitude?: string;
+  preferred_sports?: string;
+  emergency_contact_name?: string;
+  emergency_contact_no?: string;
+  emergency_contact_relationship?: string;
+  terms_and_condition_acceptance?: string;
+  privacy_policy_acceptance?: string;
   status?: number;
 }
 
@@ -206,6 +243,26 @@ export interface Center {
     email: string;
     status: string;
   };
+  center_details?: {
+    id: number;
+    email: string;
+    contact_number: string;
+    operating_hours: {
+      monday: { open: string; close: string; closed: boolean };
+      tuesday: { open: string; close: string; closed: boolean };
+      wednesday: { open: string; close: string; closed: boolean };
+      thursday: { open: string; close: string; closed: boolean };
+      friday: { open: string; close: string; closed: boolean };
+      saturday: { open: string; close: string; closed: boolean };
+      sunday: { open: string; close: string; closed: boolean };
+    };
+    banner_image: {
+      id: number;
+      url: string;
+    };
+    created_at: string;
+    updated_at: string;
+  };
   media: Array<{
     media_id: number;
     url: string;
@@ -222,6 +279,18 @@ export interface CreateCenterRequest {
   longitude: number;
   latitude: number;
   status: string;
+  center_email?: string;
+  contact_number?: string;
+  operating_hours?: {
+    monday: { open: string; close: string; closed: boolean };
+    tuesday: { open: string; close: string; closed: boolean };
+    wednesday: { open: string; close: string; closed: boolean };
+    thursday: { open: string; close: string; closed: boolean };
+    friday: { open: string; close: string; closed: boolean };
+    saturday: { open: string; close: string; closed: boolean };
+    sunday: { open: string; close: string; closed: boolean };
+  };
+  banner_image_id?: number | null;
   media_ids?: number[];
   user_id?: number;
 }
@@ -234,6 +303,18 @@ export interface UpdateCenterRequest {
   longitude?: number;
   latitude?: number;
   status?: string;
+  center_email?: string;
+  contact_number?: string;
+  operating_hours?: {
+    monday: { open: string; close: string; closed: boolean };
+    tuesday: { open: string; close: string; closed: boolean };
+    wednesday: { open: string; close: string; closed: boolean };
+    thursday: { open: string; close: string; closed: boolean };
+    friday: { open: string; close: string; closed: boolean };
+    saturday: { open: string; close: string; closed: boolean };
+    sunday: { open: string; close: string; closed: boolean };
+  };
+  banner_image_id?: number | null;
   media_ids?: number[];
   user_id?: number;
 }
@@ -248,6 +329,15 @@ export interface Area {
   center_id: number;
   sport_id?: number;
   sport?: Sport;
+  amenity_ids?: number[];
+  amenities?: Array<{
+    id: number;
+    name: string;
+    slug: string;
+    description: string | null;
+    icon: string | null;
+    category: string | null;
+  }>;
   media: Array<{
     id: number;
     title: string;
@@ -265,6 +355,7 @@ export interface CreateAreaRequest {
   floor: string;
   sport_id?: number;
   media_ids?: number[];
+  amenity_ids?: number[];
 }
 
 export interface UpdateAreaRequest {
@@ -274,6 +365,7 @@ export interface UpdateAreaRequest {
   floor?: string;
   sport_id?: number;
   media_ids?: number[];
+  amenity_ids?: number[];
 }
 
 // Country Types

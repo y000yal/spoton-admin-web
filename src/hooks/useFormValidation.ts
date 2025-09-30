@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { parseValidationErrors, type ValidationErrors } from '../utils/validationErrorHandler';
 
 /**
@@ -9,10 +9,6 @@ export function useFormValidation() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
-  // Debug: Monitor validationErrors changes
-  useEffect(() => {
-    console.log('validationErrors changed:', validationErrors);
-  }, [validationErrors]);
 
   /**
    * Clear a specific field error
@@ -51,36 +47,27 @@ export function useFormValidation() {
    * Automatically parses 422 validation errors and sets appropriate error state
    */
   const handleApiError = useCallback((error: unknown) => {
-    console.error('API Error:', error);
-    console.log('Error type:', typeof error);
-    console.log('Error constructor:', error?.constructor?.name);
-    
     // Check if it's a 422 validation error
     if (error && typeof error === 'object') {
       // Handle different error structures
-      let response: any = null;
+      let response: unknown = null;
       
       // Check for direct response property
       if ('response' in error) {
-        response = (error as any).response;
+        response = (error as { response: unknown }).response;
       }
       // Check for nested error (React Query sometimes wraps errors)
-      else if ('error' in error && (error as any).error && 'response' in (error as any).error) {
-        response = (error as any).error.response;
+      else if ('error' in error && (error as { error: unknown }).error && 'response' in (error as { error: { response: unknown } }).error) {
+        response = (error as { error: { response: unknown } }).error.response;
       }
       // Check if error itself has the response structure
       else if ('status' in error && 'data' in error) {
         response = error;
       }
       
-      console.log('Extracted response:', response);
-      
-      if (response && response.status === 422) {
-        console.log('Found 422 error, response data:', response.data);
+      if (response && typeof response === 'object' && 'status' in response && response.status === 422) {
         const parsedErrors = parseValidationErrors({ response });
-        console.log('Parsed validation errors:', parsedErrors);
         setValidationErrors(parsedErrors);
-        console.log('setValidationErrors called with:', parsedErrors);
         
         // Clear any existing client-side errors
         setErrors({});
@@ -100,9 +87,7 @@ export function useFormValidation() {
   const getFieldError = useCallback((field: string): string | undefined => {
     const clientError = errors[field];
     const validationError = validationErrors[field];
-    const result = clientError || validationError;
-    console.log(`getFieldError('${field}'): clientError=${clientError}, validationError=${validationError}, result=${result}`);
-    return result;
+    return clientError || validationError;
   }, [errors, validationErrors]);
 
   /**

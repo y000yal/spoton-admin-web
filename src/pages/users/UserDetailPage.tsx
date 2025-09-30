@@ -91,13 +91,13 @@ const UserDetailPage: React.FC = () => {
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Not specified';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    return dateString; // Show as-is
+  };
+
+  const formatFullName = (fullName: string | null | { first_name: string; middle_name?: string; last_name: string }) => {
+    if (!fullName) return 'Not specified';
+    if (typeof fullName === 'string') return fullName;
+    return `${fullName.first_name} ${fullName.last_name}`.trim();
   };
 
   const getStatusBadge = (status: string) => {
@@ -161,7 +161,7 @@ const UserDetailPage: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                    {user.full_name || 'No Name Provided'}
+                    {formatFullName(user.full_name)}
                   </h2>
                   <p className="text-gray-600 mb-4">
                     @{user.username || 'No Username'}
@@ -220,7 +220,7 @@ const UserDetailPage: React.FC = () => {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Full Name</label>
-                <p className="text-gray-900">{user.full_name || 'Not specified'}</p>
+                <p className="text-gray-900">{formatFullName(user.full_name)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Username</label>
@@ -236,6 +236,96 @@ const UserDetailPage: React.FC = () => {
                       Verified
                     </span>
                   )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Mobile Number</label>
+                <p className="text-gray-900">{user.mobile_no || 'Not specified'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Date of Birth</label>
+                <p className="text-gray-900">{user.date_of_birth || 'Not specified'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Gender</label>
+                <p className="text-gray-900">{user.gender || 'Not specified'}</p>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Location Information */}
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Calendar className="w-5 h-5 text-primary-600 mr-2" />
+              Location Information
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Address</label>
+                <p className="text-gray-900">{user.address || 'Not specified'}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Longitude</label>
+                  <p className="text-gray-900">{user.longitude || 'Not specified'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Latitude</label>
+                  <p className="text-gray-900">{user.latitude || 'Not specified'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Preferences & Emergency Contact */}
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <UserIcon className="w-5 h-5 text-primary-600 mr-2" />
+              Preferences & Emergency Contact
+            </h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Preferred Sports</label>
+                <p className="text-gray-900">{user.preferred_sports || 'Not specified'}</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Emergency Contact Name</label>
+                  <p className="text-gray-900">{user.emergency_contact_name || 'Not specified'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Emergency Contact Number</label>
+                  <p className="text-gray-900">{user.emergency_contact_no || 'Not specified'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Relationship</label>
+                  <p className="text-gray-900">{user.emergency_contact_relationship || 'Not specified'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Legal Agreements */}
+        <Card>
+          <div className="p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <Shield className="w-5 h-5 text-primary-600 mr-2" />
+              Legal Agreements
+            </h3>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Terms & Conditions Acceptance</label>
+                  <p className="text-gray-900">{user.terms_and_condition_acceptance || 'Not specified'}</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">Privacy Policy Acceptance</label>
+                  <p className="text-gray-900">{user.privacy_policy_acceptance || 'Not specified'}</p>
                 </div>
               </div>
             </div>

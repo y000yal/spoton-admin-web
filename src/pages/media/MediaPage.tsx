@@ -27,7 +27,7 @@ type ViewMode = 'grid' | 'list';
 
 const MediaPage: React.FC = () => {
   const navigate = useNavigate();
-  const { } = usePermissions();
+  usePermissions();
   const { user } = useAuth();
   const { showSuccess, showError, showWarning } = useToast();
 
@@ -183,20 +183,25 @@ const MediaPage: React.FC = () => {
         
         setDeleteModal({ isOpen: false, media: null, isMultiple: false, isLoading: false });
         setSelectedItems([]);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting media:', error);
         
         // Handle validation errors
-        if (error?.response?.data?.message) {
-          const errorMessage = error.response.data.message;
-          if (typeof errorMessage === 'object') {
-            // Handle validation errors with field-specific messages
-            const validationErrors = Object.entries(errorMessage)
-              .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-              .join('\n');
-            showError(`Validation Error: ${validationErrors}`);
+        if (error && typeof error === 'object' && 'response' in error) {
+          const errorResponse = error.response as { data?: { message?: unknown } };
+          if (errorResponse?.data?.message) {
+            const errorMessage = errorResponse.data.message;
+            if (typeof errorMessage === 'object') {
+              // Handle validation errors with field-specific messages
+              const validationErrors = Object.entries(errorMessage)
+                .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('\n');
+              showError(`Validation Error: ${validationErrors}`);
+            } else {
+              showError(`Error: ${errorMessage}`);
+            }
           } else {
-            showError(`Error: ${errorMessage}`);
+            showError('An error occurred while deleting media');
           }
         } else {
           showError('An error occurred while deleting media');
@@ -214,20 +219,25 @@ const MediaPage: React.FC = () => {
         console.log('Single delete response:', response);
         showSuccess(`Successfully deleted media: ${deleteModal.media.title}`);
         setDeleteModal({ isOpen: false, media: null, isMultiple: false, isLoading: false });
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting single media:', error);
         
         // Handle validation errors
-        if (error?.response?.data?.message) {
-          const errorMessage = error.response.data.message;
-          if (typeof errorMessage === 'object') {
-            // Handle validation errors with field-specific messages
-            const validationErrors = Object.entries(errorMessage)
-              .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
-              .join('\n');
-            showError(`Validation Error: ${validationErrors}`);
+        if (error && typeof error === 'object' && 'response' in error) {
+          const errorResponse = error.response as { data?: { message?: unknown } };
+          if (errorResponse?.data?.message) {
+            const errorMessage = errorResponse.data.message;
+            if (typeof errorMessage === 'object') {
+              // Handle validation errors with field-specific messages
+              const validationErrors = Object.entries(errorMessage)
+                .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('\n');
+              showError(`Validation Error: ${validationErrors}`);
+            } else {
+              showError(`Error: ${errorMessage}`);
+            }
           } else {
-            showError(`Error: ${errorMessage}`);
+            showError('An error occurred while deleting media');
           }
         } else {
           showError('An error occurred while deleting media');
@@ -328,8 +338,11 @@ const MediaPage: React.FC = () => {
 
   const media = mediaData?.data || [];
   
-  // Filter media to only show items that belong to the current user
-  const userMedia = user?.id ? media.filter(item => item.user_id === user.id) : [];
+  // Check if user is admin
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
+  
+  // Filter media: show all media for admin users, only user's own media for regular users
+  const userMedia = isAdmin ? media : (user?.id ? media.filter(item => item.user_id === user.id) : []);
 
   return (
     <div className="space-y-6">

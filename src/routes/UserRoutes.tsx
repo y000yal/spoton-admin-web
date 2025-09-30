@@ -1,12 +1,9 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { UsersPage, UserDetailPage, UserEditPage, UserCreatePage } from '../pages/users';
 import ProtectedRoute from '../components/ProtectedRoute';
-import { useAuth } from '../hooks/useAuth';
 
 const UserRoutes: React.FC = () => {
-  const { user } = useAuth();
-  
   return (
     <Routes>
       <Route index element={
@@ -18,9 +15,6 @@ const UserRoutes: React.FC = () => {
         <ProtectedRoute requiredPermissions={['user-store']}>
           <UserCreatePage />
         </ProtectedRoute>
-      } />
-      <Route path="profile" element={
-        user?.id ? <UserDetailPage /> : <Navigate to="/dashboard" replace />
       } />
       <Route path=":userId" element={
         <ProtectedRoute requiredPermissions={['user-show']}>

@@ -17,72 +17,81 @@ export interface ValidationErrors {
  * @param error - The error object from axios or API response
  * @returns Object with field names as keys and error messages as values
  */
-export function parseValidationErrors(error: any): ValidationErrors {
+export function parseValidationErrors(error: unknown): ValidationErrors {
   const validationErrors: ValidationErrors = {};
-
-  console.log('parseValidationErrors received:', error);
-  console.log('error.response:', error?.response);
-  console.log('error.response.data:', error?.response?.data);
-  console.log('error.response.data.errors:', error?.response?.data?.errors);
-
-  // Check if error has response data with validation errors
-  if (error?.response?.data?.errors) {
-    const errors = error.response.data.errors;
-    console.log('Found errors in response.data.errors:', errors);
+  
+  // Type guard to check if error has response property
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response: unknown }).response;
     
-    // Handle Laravel-style validation errors
-    // Format: { "field_name": ["Error message 1", "Error message 2"] }
-    Object.entries(errors).forEach(([field, messages]) => {
-      if (Array.isArray(messages) && messages.length > 0) {
-        // Take the first error message for each field
-        validationErrors[field] = messages[0];
-      } else if (typeof messages === 'string') {
-        validationErrors[field] = messages;
+    if (response && typeof response === 'object' && 'data' in response) {
+      const data = (response as { data: unknown }).data;
+      
+      if (data && typeof data === 'object') {
+        // Check if error has response data with validation errors
+        if ('errors' in data) {
+          const errors = (data as { errors: unknown }).errors;
+          
+          // Handle Laravel-style validation errors
+          // Format: { "field_name": ["Error message 1", "Error message 2"] }
+          if (errors && typeof errors === 'object') {
+            Object.entries(errors).forEach(([field, messages]) => {
+              if (Array.isArray(messages) && messages.length > 0) {
+                // Take the first error message for each field
+                validationErrors[field] = messages[0];
+              } else if (typeof messages === 'string') {
+                validationErrors[field] = messages;
+              }
+            });
+          }
+        }
+        
+        // Check if errors are under 'message' (your API structure)
+        else if ('message' in data) {
+          const messageData = (data as { message: unknown }).message;
+          
+          // Handle if message contains field-specific errors
+          if (typeof messageData === 'object' && messageData !== null) {
+            Object.entries(messageData).forEach(([field, messages]) => {
+              if (Array.isArray(messages) && messages.length > 0) {
+                // Map 'image' field to 'sport_image' for consistency with form field names
+                const fieldName = field === 'image' ? 'sport_image' : field;
+                validationErrors[fieldName] = messages[0];
+              } else if (typeof messages === 'string') {
+                const fieldName = field === 'image' ? 'sport_image' : field;
+                validationErrors[fieldName] = messages;
+              }
+            });
+          } else if (typeof messageData === 'string') {
+            // Handle single error message
+            validationErrors.general = messageData;
+          }
+        }
+        
+        // Check if errors are in a different location
+        else if ('general' in data) {
+          const generalData = (data as { general: unknown }).general;
+          // Handle if errors are nested under 'general'
+          if (typeof generalData === 'object' && generalData !== null) {
+            Object.entries(generalData).forEach(([field, messages]) => {
+              if (Array.isArray(messages) && messages.length > 0) {
+                validationErrors[field] = messages[0];
+              } else if (typeof messages === 'string') {
+                validationErrors[field] = messages;
+              }
+            });
+          }
+        }
       }
-    });
-  }
-  
-  // Check if errors are under 'message' (your API structure)
-  else if (error?.response?.data?.message) {
-    console.log('Found errors in response.data.message:', error.response.data.message);
-    const messageData = error.response.data.message;
-    
-    // Handle if message contains field-specific errors
-    if (typeof messageData === 'object' && messageData !== null) {
-      Object.entries(messageData).forEach(([field, messages]) => {
-        if (Array.isArray(messages) && messages.length > 0) {
-          // Map 'image' field to 'sport_image' for consistency with form field names
-          const fieldName = field === 'image' ? 'sport_image' : field;
-          validationErrors[fieldName] = messages[0];
-        } else if (typeof messages === 'string') {
-          const fieldName = field === 'image' ? 'sport_image' : field;
-          validationErrors[fieldName] = messages;
-        }
-      });
-    } else if (typeof messageData === 'string') {
-      // Handle single error message
-      validationErrors.general = messageData;
-    }
-  }
-  
-  // Check if errors are in a different location
-  else if (error?.response?.data?.general) {
-    console.log('Found errors in response.data.general:', error.response.data.general);
-    // Handle if errors are nested under 'general'
-    if (typeof error.response.data.general === 'object') {
-      Object.entries(error.response.data.general).forEach(([field, messages]) => {
-        if (Array.isArray(messages) && messages.length > 0) {
-          validationErrors[field] = messages[0];
-        } else if (typeof messages === 'string') {
-          validationErrors[field] = messages;
-        }
-      });
     }
   }
   
   // Check for error message in different locations
-  else if (error?.message) {
-    validationErrors.general = error.message;
+  else if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message: unknown }).message;
+    if (typeof message === 'string') {
+      validationErrors.general = message;
+    }
   }
 
   return validationErrors;

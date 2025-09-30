@@ -80,7 +80,6 @@ const SportDetailPage: React.FC = () => {
       // Navigate after ensuring fresh data is available
       navigate("/sports");
     } catch (error) {
-      console.error("Failed to delete sport:", error);
       setDeleteModal((prev) => ({ ...prev, isLoading: false }));
     }
   };
@@ -239,7 +238,7 @@ const SportDetailPage: React.FC = () => {
                   </label>
                   <p className="text-gray-900">
                     {currentSport.created_at
-                      ? new Date(currentSport.created_at).toLocaleDateString()
+                      ? currentSport.created_at
                       : "N/A"}
                   </p>
                 </div>
@@ -250,7 +249,7 @@ const SportDetailPage: React.FC = () => {
                   </label>
                   <p className="text-gray-900">
                     {currentSport.updated_at
-                      ? new Date(currentSport.updated_at).toLocaleDateString()
+                      ? currentSport.updated_at
                       : "N/A"}
                   </p>
                 </div>

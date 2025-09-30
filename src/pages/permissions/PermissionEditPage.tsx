@@ -100,27 +100,53 @@ const PermissionEditPage: React.FC = () => {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <Button
-            onClick={handleCancel}
-            variant="secondary"
+            variant="outline"
             size="sm"
+            onClick={() => navigate('/permissions')}
+            className="flex items-center space-x-1"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Permission</h1>
-            <p className="text-gray-600">
-              Update information for permission "{currentPermission.display_name || currentPermission.name}"
-            </p>
-          </div>
+          <KeyIcon className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Edit Permission</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="permission-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>Update Permission</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
       {/* Edit Form */}
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form id="permission-form" onSubmit={handleSubmit} className="space-y-6">
           <FormSection title="Permission Information" icon={<KeyIcon className="w-5 h-5" />}>
             <InputField
               label="Permission Name"
@@ -180,23 +206,6 @@ const PermissionEditPage: React.FC = () => {
             </div>
           )}
 
-          <FormActions>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleCancel}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              leftIcon={isSubmitting ? undefined : <Save className="h-4 w-4" />}
-            >
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </FormActions>
         </form>
       </Card>
     </div>

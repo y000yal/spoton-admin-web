@@ -37,8 +37,8 @@ export class AuthService extends BaseApiService {
     }
 
     try {
-      // Use the /users/v1/me endpoint to get current user data
-      const response = await this.api.get<User>('/users/v1/me');
+      // Use the /admin/v1/me endpoint to get current user data
+      const response = await this.api.get<User>('/admin/v1/me');
       const userResponse = response.data;
       
       // If user has a role_id, fetch the role with permissions

@@ -277,18 +277,47 @@ const RoleEditPage: React.FC = () => {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <Button onClick={handleCancel} variant="secondary" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/roles')}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Edit Role</h1>
-            <p className="text-gray-600">
-              Update information for role "
-              {currentRole.display_name || currentRole.name}"
-            </p>
-          </div>
+          <Key className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Edit Role</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="role-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>Update Role</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -296,7 +325,7 @@ const RoleEditPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Side - Role Information Form */}
         <Card className="lg:col-span-1">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form id="role-form" onSubmit={handleSubmit} className="space-y-6">
             <FormSection title="Role Information">
               <InputField
                 label="Role Name"
@@ -342,27 +371,6 @@ const RoleEditPage: React.FC = () => {
               </div>
             )}
 
-            <FormActions>
-              <div className="flex items-center space-x-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleCancel}
-                  disabled={isSubmitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={isSubmitting}
-                  leftIcon={
-                    isSubmitting ? undefined : <Save className="h-4 w-4" />
-                  }
-                >
-                  {isSubmitting ? "Saving..." : "Save Changes"}
-                </Button>
-              </div>
-            </FormActions>
           </form>
         </Card>
 

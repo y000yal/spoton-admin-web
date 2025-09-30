@@ -5,9 +5,10 @@ import { useRoles } from '../../hooks/useRoles';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../contexts/ToastContext';
 
-import { Card, Button, InputField, SelectField, FormSection, FormActions } from '../../components/UI';
-import { ArrowLeft, Save, X, Loader2 } from 'lucide-react';
+import { Card, Button, InputField, SelectField, FormSection } from '../../components/UI';
+import { ArrowLeft, Save, X, Users } from 'lucide-react';
 import type { CreateUserRequest } from '../../types';
+import { validateDateOfBirth, validateFieldLength, getValidationMessage } from '../../utils/userValidation';
 
 const UserCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -29,9 +30,20 @@ const UserCreatePage: React.FC = () => {
       middle_name: '',
       last_name: ''
     },
-    role_id: 1,
+    mobile_no: '',
+    date_of_birth: '',
+    gender: '',
+    country_id: undefined,
     address: '',
-    mobile_no: 0
+    longitude: '',
+    latitude: '',
+    preferred_sports: '',
+    emergency_contact_name: '',
+    emergency_contact_no: '',
+    emergency_contact_relationship: '',
+    terms_and_condition_acceptance: '',
+    privacy_policy_acceptance: '',
+    role_id: 1
   });
 
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +77,62 @@ const UserCreatePage: React.FC = () => {
     
     setError(null);
     setFieldErrors({});
+
+    // Client-side validation
+    const validationErrors: Record<string, string> = {};
+
+    // Validate date of birth
+    if (formData.date_of_birth && !validateDateOfBirth(formData.date_of_birth)) {
+      validationErrors.date_of_birth = getValidationMessage('date_of_birth', 'before');
+    }
+
+    // Validate field lengths
+    if (formData.mobile_no && !validateFieldLength(formData.mobile_no, 20)) {
+      validationErrors.mobile_no = getValidationMessage('mobile_no', 'max');
+    }
+
+    if (formData.address && !validateFieldLength(formData.address, 500)) {
+      validationErrors.address = getValidationMessage('address', 'max');
+    }
+
+    if (formData.longitude && !validateFieldLength(formData.longitude, 50)) {
+      validationErrors.longitude = getValidationMessage('longitude', 'max');
+    }
+
+    if (formData.latitude && !validateFieldLength(formData.latitude, 50)) {
+      validationErrors.latitude = getValidationMessage('latitude', 'max');
+    }
+
+    if (formData.preferred_sports && !validateFieldLength(formData.preferred_sports, 500)) {
+      validationErrors.preferred_sports = getValidationMessage('preferred_sports', 'max');
+    }
+
+    if (formData.emergency_contact_name && !validateFieldLength(formData.emergency_contact_name, 255)) {
+      validationErrors.emergency_contact_name = getValidationMessage('emergency_contact_name', 'max');
+    }
+
+    if (formData.emergency_contact_no && !validateFieldLength(formData.emergency_contact_no, 20)) {
+      validationErrors.emergency_contact_no = getValidationMessage('emergency_contact_no', 'max');
+    }
+
+    if (formData.emergency_contact_relationship && !validateFieldLength(formData.emergency_contact_relationship, 100)) {
+      validationErrors.emergency_contact_relationship = getValidationMessage('emergency_contact_relationship', 'max');
+    }
+
+    if (formData.terms_and_condition_acceptance && !validateFieldLength(formData.terms_and_condition_acceptance, 50)) {
+      validationErrors.terms_and_condition_acceptance = getValidationMessage('terms_and_condition_acceptance', 'max');
+    }
+
+    if (formData.privacy_policy_acceptance && !validateFieldLength(formData.privacy_policy_acceptance, 50)) {
+      validationErrors.privacy_policy_acceptance = getValidationMessage('privacy_policy_acceptance', 'max');
+    }
+
+    // If there are validation errors, set them and return
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      showError('Please fix the validation errors below.', 'Validation Error');
+      return;
+    }
 
     try {
       const response = await createUserMutation.mutateAsync(formData);
@@ -123,25 +191,53 @@ const UserCreatePage: React.FC = () => {
     <div className="space-y-6">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           <Button
-            onClick={handleCancel}
-            variant="secondary"
+            variant="outline"
             size="sm"
+            onClick={() => navigate('/users')}
+            className="flex items-center space-x-1"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Create New User</h1>
-            <p className="text-gray-600">Add a new user to the system</p>
-          </div>
+          <Users className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Create New User</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={createUserMutation.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="user-form"
+            disabled={createUserMutation.isPending}
+            className="flex items-center space-x-2"
+          >
+            {createUserMutation.isPending ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>Create User</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
       {/* Create Form */}
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form id="user-form" onSubmit={handleSubmit} className="space-y-6">
           <FormSection title="Personal Information">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <InputField
@@ -243,22 +339,128 @@ const UserCreatePage: React.FC = () => {
                 name="mobile_no"
                 type="tel"
                 value={formData.mobile_no || ''}
-                onChange={(e) => handleInputChange('mobile_no', parseInt(e.target.value) || 0)}
+                onChange={(e) => handleInputChange('mobile_no', e.target.value)}
                 placeholder="Mobile number"
-                required
                 error={fieldErrors['mobile_no']}
               />
             </div>
             
+            <InputField
+              label="Date of Birth"
+              name="date_of_birth"
+              type="date"
+              value={formData.date_of_birth || ''}
+              onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
+              error={fieldErrors['date_of_birth']}
+            />
+            
+            <SelectField
+              label="Gender"
+              name="gender"
+              value={formData.gender || ''}
+              onChange={(e) => handleInputChange('gender', e.target.value)}
+              options={[
+                { value: '', label: 'Select gender' },
+                { value: 'male', label: 'Male' },
+                { value: 'female', label: 'Female' },
+                { value: 'other', label: 'Other' },
+                { value: 'prefer_not_to_say', label: 'Prefer not to say' }
+              ]}
+              error={fieldErrors['gender']}
+            />
+          </FormSection>
+
+          <FormSection title="Location Information">
             <InputField
               label="Address"
               name="address"
               value={formData.address || ''}
               onChange={(e) => handleInputChange('address', e.target.value)}
               placeholder="Full address"
-              required
               error={fieldErrors['address']}
             />
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField
+                label="Longitude"
+                name="longitude"
+                value={formData.longitude || ''}
+                onChange={(e) => handleInputChange('longitude', e.target.value)}
+                placeholder="Longitude"
+                error={fieldErrors['longitude']}
+              />
+              
+              <InputField
+                label="Latitude"
+                name="latitude"
+                value={formData.latitude || ''}
+                onChange={(e) => handleInputChange('latitude', e.target.value)}
+                placeholder="Latitude"
+                error={fieldErrors['latitude']}
+              />
+            </div>
+          </FormSection>
+
+          <FormSection title="Preferences & Emergency Contact">
+            <InputField
+              label="Preferred Sports"
+              name="preferred_sports"
+              value={formData.preferred_sports || ''}
+              onChange={(e) => handleInputChange('preferred_sports', e.target.value)}
+              placeholder="e.g., Football, Basketball"
+              error={fieldErrors['preferred_sports']}
+            />
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <InputField
+                label="Emergency Contact Name"
+                name="emergency_contact_name"
+                value={formData.emergency_contact_name || ''}
+                onChange={(e) => handleInputChange('emergency_contact_name', e.target.value)}
+                placeholder="Emergency contact name"
+                error={fieldErrors['emergency_contact_name']}
+              />
+              
+              <InputField
+                label="Emergency Contact Number"
+                name="emergency_contact_no"
+                value={formData.emergency_contact_no || ''}
+                onChange={(e) => handleInputChange('emergency_contact_no', e.target.value)}
+                placeholder="Emergency contact number"
+                error={fieldErrors['emergency_contact_no']}
+              />
+              
+              <InputField
+                label="Relationship"
+                name="emergency_contact_relationship"
+                value={formData.emergency_contact_relationship || ''}
+                onChange={(e) => handleInputChange('emergency_contact_relationship', e.target.value)}
+                placeholder="e.g., Spouse, Parent"
+                error={fieldErrors['emergency_contact_relationship']}
+              />
+            </div>
+          </FormSection>
+
+          <FormSection title="Legal Agreements">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InputField
+                label="Terms & Conditions Acceptance"
+                name="terms_and_condition_acceptance"
+                type="datetime-local"
+                value={formData.terms_and_condition_acceptance || ''}
+                onChange={(e) => handleInputChange('terms_and_condition_acceptance', e.target.value)}
+                error={fieldErrors['terms_and_condition_acceptance']}
+              />
+              
+              <InputField
+                label="Privacy Policy Acceptance"
+                name="privacy_policy_acceptance"
+                type="datetime-local"
+                value={formData.privacy_policy_acceptance || ''}
+                onChange={(e) => handleInputChange('privacy_policy_acceptance', e.target.value)}
+                error={fieldErrors['privacy_policy_acceptance']}
+              />
+            </div>
           </FormSection>
 
           {error && (
@@ -273,23 +475,6 @@ const UserCreatePage: React.FC = () => {
             </div>
           )}
 
-          <FormActions>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleCancel}
-              disabled={createUserMutation.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={createUserMutation.isPending}
-              leftIcon={createUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            >
-              {createUserMutation.isPending ? 'Creating...' : 'Create User'}
-            </Button>
-          </FormActions>
         </form>
       </Card>
     </div>

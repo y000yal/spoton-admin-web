@@ -42,7 +42,6 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check if user can access the current route using dynamic permissions
   const canAccess = canAccessRoute(user, location.pathname);
-  
   // Check specific required permissions if provided
   const hasRequiredPermissions = requiredPermissions.length === 0 || 
     hasAnyPermission(user, requiredPermissions);

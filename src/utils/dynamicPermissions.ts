@@ -58,14 +58,9 @@ export const canAccessRoute = (user: User | null, route: string, permissionPatte
   // This is a fallback for backward compatibility
   const routePermission = inferPermissionFromRoute(route);
   
-  // Debug logging for area routes
-  if (route.includes('/areas')) {
-    console.log('canAccessRoute debug:', {
-      route,
-      routePermission,
-      hasPermission: hasPermission(user, routePermission),
-      userPermissions: user?.role?.permissions?.map(p => p.slug) || []
-    });
+  // If routePermission is null (like for profile route), allow access
+  if (routePermission === null) {
+    return true;
   }
   
   if (routePermission) {
@@ -91,6 +86,11 @@ const inferPermissionFromRoute = (route: string): string | null => {
   // Handle special cases first
   if (resource === 'dashboard') {
     return 'dashboard-view'; // User has dashboard-view, not dashboard-index
+  }
+  
+  // Handle profile route - users should be able to view their own profile
+  if (resource === 'profile') {
+    return null; // No permission required for viewing own profile
   }
   
   // Handle edit routes (e.g., /roles/1/edit, /users/1/edit)

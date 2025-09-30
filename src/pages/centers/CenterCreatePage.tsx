@@ -1,14 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Card, MediaSelectionModal } from '../../components/UI';
-import { ArrowLeft, Building2, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Building2, Image as ImageIcon, Mail, Phone } from 'lucide-react';
 import type { CreateCenterRequest, User as UserType, Country } from '../../types';
 import { useCreateCenter } from '../../hooks/useCenters';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormValidation } from '../../hooks/useFormValidation';
 import { useAuth } from '../../hooks/useAuth';
+import { useMedia } from '../../hooks/useMedia';
 import UserSearchInput from '../../components/UserSearchInput';
 import CountrySearchInput from '../../components/CountrySearchInput';
+import OperatingHours from '../../components/OperatingHours';
 
 const CenterCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -21,6 +23,18 @@ const CenterCreatePage: React.FC = () => {
     longitude: 0,
     latitude: 0,
     status: 'active',
+    center_email: '',
+    contact_number: '',
+    operating_hours: {
+      monday: { open: '09:00', close: '18:00', closed: false },
+      tuesday: { open: '09:00', close: '18:00', closed: false },
+      wednesday: { open: '09:00', close: '18:00', closed: false },
+      thursday: { open: '09:00', close: '18:00', closed: false },
+      friday: { open: '09:00', close: '18:00', closed: false },
+      saturday: { open: '09:00', close: '18:00', closed: false },
+      sunday: { open: '09:00', close: '18:00', closed: false }
+    },
+    banner_image_id: null,
     media_ids: []
   });
   
@@ -29,6 +43,7 @@ const CenterCreatePage: React.FC = () => {
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserType | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+  const [bannerImageId, setBannerImageId] = useState<number | null>(null);
   
   // Use the form validation hook
   const {
@@ -37,6 +52,8 @@ const CenterCreatePage: React.FC = () => {
     handleApiError,
     getFieldError,
     hasFieldError,
+    setClientErrors,
+    clearAllErrors,
   } = useFormValidation();
 
   // Ref to prevent duplicate form submissions
@@ -49,6 +66,17 @@ const CenterCreatePage: React.FC = () => {
   // React Query hooks
   const createCenterMutation = useCreateCenter();
   const queryClient = useQueryClient();
+  
+  // Fetch all media and filter by selected IDs
+  const { data: allMediaData } = useMedia({
+    page: 1,
+    limit: 1000 // Get a large number to ensure we have all media
+  });
+  
+  // Filter media by selected IDs
+  const selectedMediaData = allMediaData?.data?.filter(media => 
+    selectedMediaIds.includes(media.id)
+  ) || [];
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -77,6 +105,11 @@ const CenterCreatePage: React.FC = () => {
       ...prev,
       user_id: selectedUser?.id || user?.id
     }));
+    
+    // Clear user_id error when user is selected
+    if (selectedUser) {
+      clearFieldError('user_id');
+    }
   };
 
   const handleCountrySelect = (selectedCountry: Country | null) => {
@@ -85,13 +118,61 @@ const CenterCreatePage: React.FC = () => {
       ...prev,
       country_id: selectedCountry?.id || 0
     }));
+    
+    // Clear country error when country is selected
+    if (selectedCountry) {
+      clearFieldError('country_id');
+    }
+  };
+
+  const handleOperatingHoursChange = (operatingHours: CreateCenterRequest['operating_hours']) => {
+    setFormData(prev => ({
+      ...prev,
+      operating_hours: operatingHours
+    }));
+  };
+
+  const handleBannerImageSelect = (imageId: number | null) => {
+    setBannerImageId(imageId);
+    setFormData(prev => ({
+      ...prev,
+      banner_image_id: imageId
+    }));
   };
 
   const validateForm = (): boolean => {
-    return formData.name.trim().length > 0 && 
+    const isValid = formData.name.trim().length > 0 && 
            formData.country_id > 0 && 
            formData.address.trim().length > 0 &&
            formData.status.length > 0;
+    
+    // Set client-side validation errors
+    const clientErrors: Record<string, string> = {};
+    
+    if (formData.name.trim().length === 0) {
+      clientErrors.name = 'Center name is required';
+    }
+    
+    if (formData.country_id === 0) {
+      clientErrors.country_id = 'Please select a country';
+    }
+    
+    if (formData.address.trim().length === 0) {
+      clientErrors.address = 'Address is required';
+    }
+    
+    if (formData.status.length === 0) {
+      clientErrors.status = 'Status is required';
+    }
+    
+    // Set client errors using the validation hook
+    if (Object.keys(clientErrors).length > 0) {
+      setClientErrors(clientErrors);
+    } else {
+      clearAllErrors();
+    }
+    
+    return isValid;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -114,6 +195,7 @@ const CenterCreatePage: React.FC = () => {
         ...formData,
         user_id: isAdmin ? (selectedUser?.id || user?.id) : user?.id
       };
+      
       await createCenterMutation.mutateAsync(submitData);
       
       // Invalidate and refetch the centers list data
@@ -136,25 +218,56 @@ const CenterCreatePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/centers')}
-          className="flex items-center space-x-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
-        </Button>
-        <Building2 className="h-8 w-8 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Create Center</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/centers')}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+          <Building2 className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Create Center</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="center-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <Building2 className="h-4 w-4" />
+                <span>Create Center</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form Content */}
         <div className="lg:col-span-2">
           <Card>
-            <form onSubmit={handleSubmit}>
+            <form id="center-form" onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -276,6 +389,59 @@ const CenterCreatePage: React.FC = () => {
                   )}
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="center_email" className="block text-sm font-medium text-gray-700 mb-2">
+                      <Mail className="inline h-4 w-4 mr-1" />
+                      Center Email
+                    </label>
+                    <input
+                      type="email"
+                      id="center_email"
+                      name="center_email"
+                      value={formData.center_email || ''}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        hasFieldError('center_email') ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter center email"
+                    />
+                    {getFieldError('center_email') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('center_email')}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="contact_number" className="block text-sm font-medium text-gray-700 mb-2">
+                      <Phone className="inline h-4 w-4 mr-1" />
+                      Contact Number
+                    </label>
+                    <input
+                      type="tel"
+                      id="contact_number"
+                      name="contact_number"
+                      value={formData.contact_number || ''}
+                      onChange={handleInputChange}
+                      className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        hasFieldError('contact_number') ? 'border-red-500' : 'border-gray-300'
+                      }`}
+                      placeholder="Enter contact number"
+                    />
+                    {getFieldError('contact_number') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('contact_number')}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <OperatingHours
+                    value={formData.operating_hours}
+                    onChange={handleOperatingHoursChange}
+                    error={getFieldError('operating_hours')}
+                    disabled={isSubmitting}
+                  />
+                </div>
+
                 <div>
                   <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
                     Status <span className="text-red-500">*</span>
@@ -308,6 +474,9 @@ const CenterCreatePage: React.FC = () => {
                       onUserSelect={handleUserSelect}
                       placeholder="Search users to assign this center..."
                     />
+                    {getFieldError('user_id') && (
+                      <p className="mt-1 text-sm text-red-600">{getFieldError('user_id')}</p>
+                    )}
                     <p className="mt-1 text-xs text-gray-500">
                       Leave empty to assign to yourself
                     </p>
@@ -320,33 +489,6 @@ const CenterCreatePage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Creating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Building2 className="h-4 w-4" />
-                        <span>Create Center</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             </form>
           </Card>
@@ -378,22 +520,52 @@ const CenterCreatePage: React.FC = () => {
                     {selectedMediaIds.length} image(s) selected
                   </div>
                   
-                  {/* Selected Images Preview */}
+                  {/* Selected Images Preview with Banner Selection */}
                   <div className="grid grid-cols-2 gap-2">
-                    {selectedMediaIds.map((mediaId) => (
-                      <div key={mediaId} className="relative group">
-                        <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-gray-400" />
-                        </div>
+                    {selectedMediaData.map((media) => (
+                      <div key={media.id} className="relative group">
+                        <img
+                          src={media.url}
+                          alt={media.title || `Media ${media.id}`}
+                          className={`w-full h-24 object-cover rounded-lg border-2 transition-colors ${
+                            bannerImageId === media.id 
+                              ? 'border-blue-500' 
+                              : 'border-gray-200'
+                          }`}
+                        />
+                        
+                        {/* Banner Selection Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleBannerImageSelect(bannerImageId === media.id ? null : media.id)}
+                          className={`absolute top-1 left-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            bannerImageId === media.id 
+                              ? 'bg-blue-500 text-white' 
+                              : 'bg-white text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          {bannerImageId === media.id ? 'Banner' : 'Set Banner'}
+                        </button>
+                        
+                        {/* Remove Image Button */}
                         <button
                           type="button"
                           onClick={() => {
-                            const newSelectedIds = selectedMediaIds.filter(id => id !== mediaId);
+                            const newSelectedIds = selectedMediaIds.filter(id => id !== media.id);
                             setSelectedMediaIds(newSelectedIds);
                             setFormData(prev => ({
                               ...prev,
                               media_ids: newSelectedIds
                             }));
+                            
+                            // If the removed image was the banner, clear it
+                            if (bannerImageId === media.id) {
+                              setBannerImageId(null);
+                              setFormData(prev => ({
+                                ...prev,
+                                banner_image_id: null
+                              }));
+                            }
                           }}
                           className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
@@ -404,6 +576,14 @@ const CenterCreatePage: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                  
+                  {bannerImageId && (
+                    <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="text-sm text-blue-800">
+                        ✓ Banner image selected (ID: {bannerImageId})
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">
@@ -414,6 +594,7 @@ const CenterCreatePage: React.FC = () => {
               )}
             </div>
           </Card>
+
         </div>
       </div>
 

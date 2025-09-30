@@ -8,6 +8,7 @@ export { centerService } from './centers';
 export { areaService } from './areas';
 export { mediaService } from './media';
 export { countryService } from './countries';
+export { amenityService } from './amenities';
 
 // Export service classes for advanced usage
 export { AuthService } from './auth';
@@ -19,6 +20,7 @@ export { CenterService } from './centers';
 export { AreaService } from './areas';
 export { MediaService } from './media';
 export { CountryService } from './countries';
+export { AmenityService } from './amenities';
 
 // Export types
 export type {
@@ -54,6 +56,10 @@ export type {
 export type {
   CountryQueryParams
 } from './countries';
+
+export type {
+  AmenityQueryParams
+} from './amenities';
 
 // Media types are imported from types/index.ts
 

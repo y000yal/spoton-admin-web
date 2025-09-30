@@ -72,17 +72,45 @@ const PermissionCreatePage: React.FC = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => navigate('/permissions')}
-            leftIcon={<ArrowLeft className="h-4 w-4" />}
+            className="flex items-center space-x-1"
           >
-            Back to Permissions
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
           </Button>
-          <div className="flex items-center space-x-2">
-            <Shield className="h-6 w-6 text-blue-600" />
-            <h1 className="text-2xl font-bold text-gray-900">Create Permission</h1>
-          </div>
+          <Shield className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Create Permission</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="permission-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Creating...</span>
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                <span>Create Permission</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -103,7 +131,7 @@ const PermissionCreatePage: React.FC = () => {
 
       {/* Form */}
       <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form id="permission-form" onSubmit={handleSubmit} className="space-y-6">
           <FormSection title="Permission Details" description="Enter the permission information">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <InputField
@@ -141,24 +169,6 @@ const PermissionCreatePage: React.FC = () => {
             </div>
           </FormSection>
 
-          <FormActions>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCancel}
-              leftIcon={<X className="h-4 w-4" />}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              isLoading={isSubmitting}
-              leftIcon={<Save className="h-4 w-4" />}
-            >
-              {isSubmitting ? 'Creating...' : 'Create Permission'}
-            </Button>
-          </FormActions>
         </form>
       </Card>
     </div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button, Card } from '../../components/UI';
-import { ArrowLeft, Building2, Edit, MapPin, Globe, Calendar, User } from 'lucide-react';
+import { ArrowLeft, Building2, Edit, MapPin, Globe, Calendar, User, Mail, Phone, Clock, Image as ImageIcon } from 'lucide-react';
 import { useCenter } from '../../hooks/useCenters';
 
 import PermissionGate from '../../components/PermissionGate';
@@ -127,30 +127,118 @@ const CenterDetailPage: React.FC = () => {
                     <p className="mt-1 text-sm text-gray-900">{center.description}</p>
                   </div>
                 )}
+
+                {(center.center_details?.email || center.center_details?.contact_number) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {center.center_details?.email && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Center Email</label>
+                        <div className="mt-1 flex items-center space-x-2">
+                          <Mail className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-gray-900">{center.center_details.email}</span>
+                        </div>
+                      </div>
+                    )}
+                    {center.center_details?.contact_number && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Contact Number</label>
+                        <div className="mt-1 flex items-center space-x-2">
+                          <Phone className="h-4 w-4 text-gray-400" />
+                          <span className="text-sm text-gray-900">{center.center_details.contact_number}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </Card>
 
-          {/* Images Section */}
-          <Card>
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Images</h2>
-              {center.media && center.media.length > 0 ? (
-                <div className="grid grid-cols-4 gap-4">
-                  {center.media.map((media, index) => (
-                    <div key={index} className="relative">
-                      <img
-                        src={media.url}
-                        alt={`Center image ${index + 1}`}
-                        className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                      />
-                      <p className="mt-2 text-xs text-gray-500 text-center">Image {index + 1}</p>
+          {/* Operating Hours Section */}
+          {center.center_details?.operating_hours && (
+            <Card>
+              <div className="p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <Clock className="h-5 w-5 text-blue-600 mr-2" />
+                  Operating Hours
+                </h2>
+                <div className="space-y-3">
+                  {Object.entries(center.center_details.operating_hours).map(([day, schedule]) => (
+                    <div key={day} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="text-sm font-medium text-gray-700 capitalize">
+                        {day}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {schedule.closed ? (
+                          <span className="text-red-600 font-medium">Closed</span>
+                        ) : (
+                          <span>{schedule.open} - {schedule.close}</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Images Section */}
+          <Card>
+            <div className="p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <ImageIcon className="h-5 w-5 text-blue-600 mr-2" />
+                Images
+              </h2>
+              {center.media && center.media.length > 0 ? (
+                <div className="space-y-4">
+                  {/* Banner Image */}
+                  {center.center_details?.banner_image && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 mb-2">Banner Image</h3>
+                      <div className="relative">
+                        <img
+                          src={center.center_details.banner_image.url}
+                          alt="Banner image"
+                          className="w-full h-64 object-cover rounded-lg border border-blue-300"
+                        />
+                        <div className="absolute top-2 right-2 bg-blue-500 text-white px-2 py-1 rounded text-xs font-medium">
+                          Banner
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* All Images */}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 mb-2">
+                      All Images ({center.media.length})
+                    </h3>
+                    <div className="grid grid-cols-4 gap-4">
+                      {center.media.map((media, index) => (
+                        <div key={index} className="relative">
+                          <img
+                            src={media.url}
+                            alt={`Center image ${index + 1}`}
+                            className={`w-full h-48 object-cover rounded-lg border ${
+                              media.media_id === center.center_details?.banner_image?.id 
+                                ? 'border-blue-300 ring-2 ring-blue-200' 
+                                : 'border-gray-300'
+                            }`}
+                          />
+                          {media.media_id === center.center_details?.banner_image?.id && (
+                            <div className="absolute top-1 right-1 bg-blue-500 text-white px-1 py-0.5 rounded text-xs font-medium">
+                              Banner
+                            </div>
+                          )}
+                          <p className="mt-2 text-xs text-gray-500 text-center">Image {index + 1}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <div className="text-center py-8">
-                  <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+                  <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
                   <p className="mt-2 text-sm text-gray-500">No images available</p>
                 </div>
               )}
@@ -232,7 +320,7 @@ const CenterDetailPage: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Created</p>
                     <p className="text-sm text-gray-900">
-                      {center.created_at ? new Date(center.created_at).toLocaleDateString() : 'N/A'}
+                      {center.created_at || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -241,7 +329,7 @@ const CenterDetailPage: React.FC = () => {
                   <div>
                     <p className="text-sm font-medium text-gray-500">Last Updated</p>
                     <p className="text-sm text-gray-900">
-                      {center.updated_at ? new Date(center.updated_at).toLocaleDateString() : 'N/A'}
+                      {center.updated_at || 'N/A'}
                     </p>
                   </div>
                 </div>

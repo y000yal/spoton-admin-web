@@ -2,9 +2,10 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, DataTable, DeleteConfirmationModal, ActionButtons } from "../../components/UI";
 import DynamicPermissionGate from "../../components/DynamicPermissionGate";
-import { Plus, Users, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Users, Eye, Edit, Trash2, Loader2, RotateCcw } from "lucide-react";
 import type { User } from "../../types";
 import { useUsers, useDeleteUser } from "../../hooks/useUsers";
+import { userService } from "../../services/api/users";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "../../contexts/ToastContext";
 import { useAppSelector } from "../../store/hooks";
@@ -43,6 +44,9 @@ const UsersPage: React.FC = () => {
     user: null,
     isLoading: false
   });
+
+  // Email verification loading state
+  const [verificationLoading, setVerificationLoading] = useState<Record<number, boolean>>({});
 
   // Query parameters
   const queryParams = {
@@ -118,7 +122,30 @@ const UsersPage: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleSendVerification = async (user: User) => {
+    if (!user.email) return;
+
+    setVerificationLoading(prev => ({ ...prev, [user.id]: true }));
+
+    try {
+      const response = await userService.resendVerificationOtp(user.email);
+      
+      showSuccess(
+        response.message || 'Verification email sent successfully!',
+        'Email Sent'
+      );
+      
+    } catch (err: unknown) {
+      const errorMessage = err && typeof err === 'object' && 'message' in err 
+        ? String(err.message) 
+        : 'Failed to send verification email';
+      showError(errorMessage, 'Send Failed');
+    } finally {
+      setVerificationLoading(prev => ({ ...prev, [user.id]: false }));
+    }
+  };
+
+  const getStatusBadge = (status: string, user: User) => {
     const statusMap: Record<string, { label: string; className: string }> = {
       "1": { label: "Active", className: "bg-green-100 text-green-800" },
       "0": { label: "Inactive", className: "bg-red-100 text-red-800" },
@@ -134,11 +161,34 @@ const UsersPage: React.FC = () => {
     };
 
     return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
-      >
-        {statusInfo.label}
-      </span>
+      <div className="flex items-center space-x-2">
+        <span
+          className={`px-2 py-1 text-xs font-medium rounded-full ${statusInfo.className}`}
+        >
+          {statusInfo.label}
+        </span>
+        {status === "2" && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSendVerification(user);
+            }}
+            disabled={verificationLoading[user.id]}
+            className={`p-1 rounded-full transition-colors ${
+              verificationLoading[user.id]
+                ? 'text-gray-400 cursor-not-allowed'
+                : 'text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+            }`}
+            title="Resend verification email"
+          >
+            {verificationLoading[user.id] ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RotateCcw className="h-3 w-3" />
+            )}
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -175,7 +225,7 @@ const UsersPage: React.FC = () => {
       key: "status",
       header: "Status",
       sortable: true,
-      render: (_: unknown, user: User) => getStatusBadge(user?.status || "0"),
+      render: (_: unknown, user: User) => getStatusBadge(user?.status || "0", user),
     },
     {
       key: "created_at",
@@ -249,7 +299,7 @@ const UsersPage: React.FC = () => {
 
       <DataTable
         data={users || []}
-        columns={tableColumns as any}
+        columns={tableColumns}
         isLoading={isLoading || isFetching || isRefreshing || isSearching}
         onPageChange={(page) => {
           if (page === currentPage) return; // Prevent duplicate calls

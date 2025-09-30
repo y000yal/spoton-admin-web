@@ -8,6 +8,7 @@ import { useCenter } from '../../hooks/useCenters';
 import { useFormValidation } from '../../hooks/useFormValidation';
 import { useMedia } from '../../hooks/useMedia';
 import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
+import AmenityMultiSelect from '../../components/AmenityMultiSelect';
 
 const AreaEditPage: React.FC = () => {
   const navigate = useNavigate();
@@ -20,13 +21,15 @@ const AreaEditPage: React.FC = () => {
     description: '',
     floor: '',
     sport_id: undefined,
-    media_ids: []
+    media_ids: [],
+    amenity_ids: []
   });
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
+  const [selectedAmenityIds, setSelectedAmenityIds] = useState<number[]>([]);
 
   // Use the form validation hook
   const {
@@ -83,6 +86,29 @@ const AreaEditPage: React.FC = () => {
           media_ids: mediaIds
         }));
       }
+
+      // Set existing amenities if available
+      if (currentArea.amenity_ids && currentArea.amenity_ids.length > 0) {
+        setSelectedAmenityIds(currentArea.amenity_ids);
+        setFormData(prev => ({
+          ...prev,
+          amenity_ids: currentArea.amenity_ids
+        }));
+      } else if (currentArea.amenities && currentArea.amenities.length > 0) {
+        // If amenities come as objects, extract the IDs
+        const amenityIds = currentArea.amenities.map(amenity => amenity.id);
+        setSelectedAmenityIds(amenityIds);
+        setFormData(prev => ({
+          ...prev,
+          amenity_ids: amenityIds
+        }));
+      } else {
+        setSelectedAmenityIds([]);
+        setFormData(prev => ({
+          ...prev,
+          amenity_ids: []
+        }));
+      }
     }
   }, [currentArea]);
 
@@ -124,6 +150,14 @@ const AreaEditPage: React.FC = () => {
     }));
   };
 
+  const handleAmenityChange = (amenityIds: number[]) => {
+    setSelectedAmenityIds(amenityIds);
+    setFormData(prev => ({
+      ...prev,
+      amenity_ids: amenityIds
+    }));
+  };
+
   const validateForm = (): boolean => {
     return formData.name?.trim().length > 0 && 
            formData.floor?.trim().length > 0 &&
@@ -151,7 +185,8 @@ const AreaEditPage: React.FC = () => {
         areaId: parseInt(areaId),
         areaData: {
           ...formData,
-          media_ids: selectedMediaIds
+          media_ids: selectedMediaIds,
+          amenity_ids: selectedAmenityIds
         }
       });
       navigate(`/centers/${centerId}/areas`);
@@ -208,22 +243,53 @@ const AreaEditPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate(`/centers/${centerId}/areas`)}
-          className="flex items-center space-x-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
-        </Button>
-        <MapPin className="h-8 w-8 text-blue-600" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Edit Area</h1>
-          {center && (
-            <p className="text-sm text-gray-500">in {center.name}</p>
-          )}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/centers/${centerId}/areas`)}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+          <MapPin className="h-8 w-8 text-blue-600" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Edit Area</h1>
+            {center && (
+              <p className="text-sm text-gray-500">in {center.name}</p>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="area-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <MapPin className="h-4 w-4" />
+                <span>Update Area</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -231,7 +297,7 @@ const AreaEditPage: React.FC = () => {
         {/* Main Form Content */}
         <div className="lg:col-span-2">
           <Card>
-            <form onSubmit={handleSubmit}>
+            <form id="area-form" onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -331,39 +397,27 @@ const AreaEditPage: React.FC = () => {
                   )}
                 </div>
 
+                <div>
+                  <label htmlFor="amenities" className="block text-sm font-medium text-gray-700 mb-2">
+                    Amenities
+                  </label>
+                  <AmenityMultiSelect
+                    selectedAmenityIds={selectedAmenityIds}
+                    onAmenityChange={handleAmenityChange}
+                    placeholder="Select amenities available in this area..."
+                    disabled={isSubmitting}
+                  />
+                  {getFieldError('amenity_ids') && (
+                    <p className="mt-1 text-sm text-red-600">{getFieldError('amenity_ids')}</p>
+                  )}
+                </div>
+
                 {errors.submit && (
                   <div className="p-4 bg-red-50 border border-red-200 rounded-md">
                     <p className="text-sm text-red-600">{errors.submit}</p>
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Updating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <MapPin className="h-4 w-4" />
-                        <span>Update Area</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             </form>
           </Card>

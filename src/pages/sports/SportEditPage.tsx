@@ -114,7 +114,6 @@ const SportEditPage: React.FC = () => {
       });
       navigate('/sports');
     } catch (error) {
-      console.error('Failed to update sport:', error);
       setErrors({ submit: 'Failed to update sport. Please try again.' });
     } finally {
       setIsSubmitting(false);
@@ -133,7 +132,6 @@ const SportEditPage: React.FC = () => {
       ...prev,
       media_ids: mediaIds
     }));
-    console.log('Selected media IDs:', mediaIds);
   };
 
   if (isLoading) {
@@ -161,25 +159,56 @@ const SportEditPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-3">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => navigate('/sports')}
-          className="flex items-center space-x-1"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
-        </Button>
-        <Trophy className="h-8 w-8 text-blue-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Edit Sport</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/sports')}
+            className="flex items-center space-x-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back</span>
+          </Button>
+          <Trophy className="h-8 w-8 text-blue-600" />
+          <h1 className="text-2xl font-bold text-gray-900">Edit Sport</h1>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="sport-form"
+            disabled={isSubmitting}
+            className="flex items-center space-x-2"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Trophy className="h-4 w-4" />
+                <span>Update Sport</span>
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Form Content */}
         <div className="lg:col-span-2">
           <Card>
-            <form onSubmit={handleSubmit}>
+            <form id="sport-form" onSubmit={handleSubmit}>
               <div className="p-6 space-y-6">
                 <div>
                   <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
@@ -243,33 +272,6 @@ const SportEditPage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleCancel}
-                    disabled={isSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="flex items-center space-x-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        <span>Updating...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trophy className="h-4 w-4" />
-                        <span>Update Sport</span>
-                      </>
-                    )}
-                  </Button>
-                </div>
               </div>
             </form>
           </Card>

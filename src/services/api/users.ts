@@ -66,6 +66,11 @@ export class UserService extends BaseApiService {
     const response = await this.api.delete(`/admin/account/v1/users/${userId}`);
     return response.data;
   }
+
+  async resendVerificationOtp(email: string) {
+    const response = await this.api.post('/users/v1/resend-verification-otp', { email });
+    return response.data;
+  }
 }
 
 export const userService = new UserService();

@@ -184,7 +184,7 @@ const PermissionDetailPage: React.FC = () => {
                 Created At
               </label>
               <p className="text-gray-900">
-                {currentPermission.created_at ? new Date(currentPermission.created_at).toLocaleDateString() : 'N/A'}
+                {currentPermission.created_at || 'N/A'}
               </p>
             </div>
             
@@ -193,7 +193,7 @@ const PermissionDetailPage: React.FC = () => {
                 Updated At
               </label>
               <p className="text-gray-900">
-                {currentPermission.updated_at ? new Date(currentPermission.updated_at).toLocaleDateString() : 'N/A'}
+                {currentPermission.updated_at || 'N/A'}
               </p>
             </div>
           </div>
