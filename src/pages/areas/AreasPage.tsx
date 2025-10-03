@@ -174,7 +174,13 @@ const AreasPage: React.FC = () => {
       key: 'description',
       header: 'Description',
       sortable: true,
-      render: (_: unknown, area: Area) => area?.description || 'N/A'
+      render: (_: unknown, area: Area) => {
+        const description = area?.description || 'N/A';
+        if (description === 'N/A') return description;
+        return description.length > 50 
+          ? `${description.substring(0, 50)}...` 
+          : description;
+      }
     },
     {
       key: 'status',

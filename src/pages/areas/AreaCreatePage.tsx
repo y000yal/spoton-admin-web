@@ -8,6 +8,7 @@ import { useCenter, useCenters } from '../../hooks/useCenters';
 import { useQueryClient } from '@tanstack/react-query';
 import { useFormValidation } from '../../hooks/useFormValidation';
 import { useDynamicPermissions } from '../../hooks/useDynamicPermissions';
+import { useMedia } from '../../hooks/useMedia';
 import AmenityMultiSelect from '../../components/AmenityMultiSelect';
 
 const AreaCreatePage: React.FC = () => {
@@ -32,6 +33,14 @@ const AreaCreatePage: React.FC = () => {
   const [selectedMediaIds, setSelectedMediaIds] = useState<number[]>([]);
   const [selectedSport, setSelectedSport] = useState<Sport | null>(null);
   const [selectedAmenityIds, setSelectedAmenityIds] = useState<number[]>([]);
+  
+  // Fetch selected media details for preview
+  const { data: selectedMediaData } = useMedia({
+    limit: selectedMediaIds.length,
+    page: 1,
+    filter_field: 'id',
+    filter_value: selectedMediaIds.join(','),
+  });
   
   // Use the form validation hook
   const {
@@ -398,29 +407,40 @@ const AreaCreatePage: React.FC = () => {
                   
                   {/* Selected Images Preview */}
                   <div className="grid grid-cols-2 gap-2">
-                    {selectedMediaIds.map((mediaId) => (
-                      <div key={mediaId} className="relative group">
-                        <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                          <ImageIcon className="h-8 w-8 text-gray-400" />
+                    {selectedMediaIds.map((mediaId) => {
+                      const media = selectedMediaData?.data?.find(m => m.id === mediaId);
+                      return (
+                        <div key={mediaId} className="relative group">
+                          <div className="w-full h-24 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center overflow-hidden">
+                            {media ? (
+                              <img 
+                                src={media.url} 
+                                alt={`Media ${mediaId}`}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="h-8 w-8 text-gray-400" />
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newSelectedIds = selectedMediaIds.filter(id => id !== mediaId);
+                              setSelectedMediaIds(newSelectedIds);
+                              setFormData(prev => ({
+                                ...prev,
+                                media_ids: newSelectedIds
+                              }));
+                            }}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newSelectedIds = selectedMediaIds.filter(id => id !== mediaId);
-                            setSelectedMediaIds(newSelectedIds);
-                            setFormData(prev => ({
-                              ...prev,
-                              media_ids: newSelectedIds
-                            }));
-                          }}
-                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ) : (

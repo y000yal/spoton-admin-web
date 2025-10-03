@@ -222,6 +222,15 @@ const UsersPage: React.FC = () => {
       render: (_: unknown, user: User) => user?.email || "N/A",
     },
     {
+      key: "role",
+      header: "Role",
+      sortable: true,
+      render: (_: unknown, user: User) => {
+        if (!user?.role) return "N/A";
+        return user.role.name || "N/A";
+      },
+    },
+    {
       key: "status",
       header: "Status",
       sortable: true,
